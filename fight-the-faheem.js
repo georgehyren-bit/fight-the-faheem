@@ -8,6 +8,15 @@ let introTargetTreeIndex = 0;
 let introCamX = 0;
 let introCamY = 0;
 let introWoodParticles = [];
+let introShop = null;
+let introAxeLevel = 0;
+let introArmorLevel = 0;
+let introMaxAxeLevel = 6;
+let introMaxArmorLevel = 4;
+let introHealth = 100;
+let introMaxHealth = 100;
+let introWolves = [];
+let introUpgradeCooldown = 0;
 
 function initIntroScreen() {
     introCanvas = document.getElementById('introCanvas');
@@ -33,8 +42,13 @@ function initIntroScreen() {
     const initWorld = () => {
         introTrees = [];
         introWoodParticles = [];
+        introWolves = [];
         introTargetTreeIndex = 0;
         introAnimFrame = 0;
+        introAxeLevel = 0;
+        introArmorLevel = 0;
+        introHealth = introMaxHealth;
+        introUpgradeCooldown = 0;
 
         const baseY = 240;
         const spacing = 140;
@@ -55,6 +69,13 @@ function initIntroScreen() {
             };
             introTrees.push(t);
         }
+
+        introShop = {
+            x: introTrees[introTrees.length - 1].x + 170,
+            y: baseY + 10,
+            w: 70,
+            h: 60
+        };
 
         introPlayer = {
             x: introTrees[0].x - 50,
@@ -121,7 +142,8 @@ function drawIntroAnimation() {
             } else {
                 introPlayer.cutTimer = 30;
                 if (targetTree && targetTree.alive) {
-                    targetTree.health -= 2;
+                    const dmg = 2 + Math.floor(introAxeLevel / 2);
+                    targetTree.health -= dmg;
                     for (let i = 0; i < 6; i++) {
                         introWoodParticles.push({
                             x: targetTree.x + 10 + Math.random() * 10,
@@ -135,16 +157,95 @@ function drawIntroAnimation() {
                     if (targetTree.health <= 0) {
                         targetTree.alive = false;
                         targetTree.health = 0;
-                        introTargetTreeIndex = (introTargetTreeIndex + 1) % introTrees.length;
-                        if (introTargetTreeIndex === 0) {
-                            for (const t of introTrees) {
-                                t.alive = true;
-                                t.health = t.maxHealth;
-                            }
+                        if (introTargetTreeIndex >= introTrees.length - 1) {
+                            introPlayer.state = 'walkShop';
+                        } else {
+                            introTargetTreeIndex++;
+                            introPlayer.state = 'walk';
                         }
-                        introPlayer.state = 'walk';
                     }
                 }
+            }
+        } else if (introPlayer.state === 'walkShop') {
+            introPlayer.cutting = false;
+            introPlayer.cutTimer = 0;
+            const shopTargetX = introShop ? (introShop.x - 60) : introPlayer.x;
+            const dx = shopTargetX - introPlayer.x;
+            if (Math.abs(dx) > 2) {
+                introPlayer.facing = dx < 0 ? 'left' : 'right';
+                introPlayer.x += Math.sign(dx) * introPlayer.speed;
+            } else {
+                introPlayer.state = 'shop';
+                introUpgradeCooldown = 10;
+            }
+        } else if (introPlayer.state === 'shop') {
+            introPlayer.cutting = false;
+            introPlayer.cutTimer = 0;
+
+            if (introUpgradeCooldown > 0) {
+                introUpgradeCooldown--;
+            } else {
+                introUpgradeCooldown = 12;
+
+                if (introAxeLevel >= introMaxAxeLevel && introArmorLevel >= introMaxArmorLevel) {
+                    introPlayer.state = 'wolves';
+                    introWolves = [];
+                    for (let i = 0; i < 4; i++) {
+                        introWolves.push({
+                            x: introPlayer.x + 160 + i * 30,
+                            y: introPlayer.y,
+                            vx: 0,
+                            vy: 0,
+                            speed: 1.4 + Math.random() * 0.4,
+                            alive: true
+                        });
+                    }
+                } else {
+                    const pick = Math.random() < 0.5 ? 'axe' : 'armor';
+                    if (pick === 'axe') {
+                        if (introAxeLevel < introMaxAxeLevel) introAxeLevel++;
+                        else if (introArmorLevel < introMaxArmorLevel) introArmorLevel++;
+                    } else {
+                        if (introArmorLevel < introMaxArmorLevel) introArmorLevel++;
+                        else if (introAxeLevel < introMaxAxeLevel) introAxeLevel++;
+                    }
+                }
+            }
+        } else if (introPlayer.state === 'wolves') {
+            // Wolves chase and kill the player
+            const armorMitigation = 0.15 * introArmorLevel;
+            const dmgPerHit = Math.max(0.6, 2.0 - armorMitigation);
+
+            for (const wv of introWolves) {
+                if (!wv.alive) continue;
+                const dx = introPlayer.x - wv.x;
+                const dy = introPlayer.y - wv.y;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                wv.vx = (dx / len) * wv.speed;
+                wv.vy = (dy / len) * wv.speed;
+                wv.x += wv.vx;
+                wv.y += wv.vy;
+
+                if (len < 22) {
+                    introHealth -= dmgPerHit;
+                }
+            }
+
+            if (introHealth <= 0) {
+                // Reset loop: gear back to 0, trees back alive, health restored
+                introHealth = introMaxHealth;
+                introAxeLevel = 0;
+                introArmorLevel = 0;
+                introWolves = [];
+                for (const t of introTrees) {
+                    t.alive = true;
+                    t.health = t.maxHealth;
+                }
+                introTargetTreeIndex = 0;
+                introPlayer.x = introTrees[0].x - 50;
+                introPlayer.y = introTrees[0].y + 10;
+                introPlayer.facing = 'right';
+                introPlayer.state = 'walk';
             }
         }
 
@@ -202,6 +303,15 @@ function drawIntroAnimation() {
     introCtx.save();
     introCtx.translate(-camLeft, -camTop);
 
+    if (introShop) {
+        introCtx.fillStyle = '#3b2a1a';
+        introCtx.fillRect(introShop.x - introShop.w/2, introShop.y - introShop.h/2, introShop.w, introShop.h);
+        introCtx.fillStyle = '#8B4513';
+        introCtx.fillRect(introShop.x - introShop.w/2, introShop.y - introShop.h/2, introShop.w, 10);
+        introCtx.fillStyle = '#FFD700';
+        introCtx.fillRect(introShop.x - 20, introShop.y - 10, 40, 8);
+    }
+
     for (const t of introTrees) {
         if (!t.alive) continue;
         introCtx.fillStyle = t.trunkColor;
@@ -214,6 +324,16 @@ function drawIntroAnimation() {
             introCtx.fillStyle = '#00FF00';
             introCtx.fillRect(t.x - 15, t.y - 30, 30 * (t.health / t.maxHealth), 4);
         }
+    }
+
+    // Wolves in intro
+    for (const wv of introWolves) {
+        if (!wv.alive) continue;
+        introCtx.fillStyle = '#808080';
+        introCtx.fillRect(wv.x - 10, wv.y - 8, 20, 16);
+        introCtx.fillStyle = '#000';
+        introCtx.fillRect(wv.x - 6, wv.y - 4, 3, 3);
+        introCtx.fillRect(wv.x + 3, wv.y - 4, 3, 3);
     }
 
     if (introPlayer) {
@@ -286,6 +406,23 @@ function drawIntroAnimation() {
     }
 
     introCtx.restore();
+
+    // Intro HUD in screen-space (doesn't drift with camera)
+    introCtx.fillStyle = 'rgba(0,0,0,0.35)';
+    introCtx.fillRect(10, 10, 190, 54);
+    introCtx.fillStyle = '#FFD700';
+    introCtx.font = '12px monospace';
+    introCtx.fillText(`AXE: ${introAxeLevel}/${introMaxAxeLevel}`, 18, 30);
+    introCtx.fillText(`ARM: ${introArmorLevel}/${introMaxArmorLevel}`, 18, 46);
+
+    if (introPlayer && introPlayer.state === 'wolves') {
+        const ratio = Math.max(0, Math.min(1, introHealth / introMaxHealth));
+        introCtx.fillStyle = '#FF0000';
+        introCtx.fillRect(18, 56, 160, 6);
+        introCtx.fillStyle = '#00FF00';
+        introCtx.fillRect(18, 56, 160 * ratio, 6);
+    }
+
     introCtx.restore();
 
     requestAnimationFrame(drawIntroAnimation);
