@@ -1,0 +1,7 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/fight%20the%20fa.html"
+  status = 200

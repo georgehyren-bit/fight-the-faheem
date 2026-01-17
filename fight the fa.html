@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fight The Faheem</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', monospace;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            border: 2px solid #333;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #87CEEB;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        .ui-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        
+        .stat {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .stat span {
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        #shop, #inventory {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #FFD700;
+            min-width: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        #shop h2, #inventory h2 {
+            margin-top: 0;
+            color: #FFD700;
+            text-align: center;
+        }
+        
+        .shop-tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .shop-tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: #ccc;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        .shop-tab.active {
+            color: #FFD700;
+            border-bottom: 2px solid #FFD700;
+        }
+        
+        .shop-content {
+            display: none;
+        }
+        
+        .shop-content.active {
+            display: block;
+        }
+        
+        .shop-item, .inventory-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .shop-item:hover, .inventory-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .shop-item h4, .inventory-item h4 {
+            margin: 0 0 5px 0;
+            color: #FFD700;
+        }
+        
+        .shop-item p, .inventory-item p {
+            margin: 2px 0;
+            font-size: 12px;
+        }
+        
+        .inventory-item.selected {
+            background: rgba(255, 215, 0, 0.3);
+            border: 1px solid #FFD700;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #FF0000;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .close-btn:hover {
+            background: #CC0000;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        .controls h3 {
+            margin: 0 0 5px 0;
+            color: #FFD700;
+        }
+        
+        .controls p {
+            margin: 2px 0;
+        }
+
+        .qol-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 220px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            min-width: 220px;
+        }
+
+        .qol-panel h3 {
+            margin: 0 0 5px 0;
+            color: #FFD700;
+        }
+
+        .qol-panel label {
+            display: block;
+            margin: 4px 0;
+            color: #ccc;
+            cursor: pointer;
+        }
+
+        .qol-panel input {
+            margin-right: 6px;
+        }
+
+        .testing-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 460px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            min-width: 150px;
+        }
+
+        .testing-panel h3 {
+            margin: 0 0 5px 0;
+            color: #FF6B6B;
+        }
+
+        .testing-panel button {
+            background: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 11px;
+        }
+
+        .testing-panel button:hover {
+            background: #555;
+            border-color: #888;
+        }
+
+        #mobileLayout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .mobile-controls {
+            display: none;
+            width: var(--mobileSideWidth, 120px);
+            height: 600px;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mobile-btn {
+            width: 100%;
+            padding: 14px 10px;
+            font-size: 14px;
+            font-family: inherit;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.75);
+            color: #FFD700;
+            border: 2px solid #444;
+            border-radius: 10px;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .mobile-btn:active {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: #FFD700;
+        }
+
+        .dpad {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        .dpad-spacer {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (pointer: coarse), (max-width: 980px) {
+            #mobileLayout {
+                --mobileSideWidth: clamp(90px, 14vw, 130px);
+            }
+
+            .mobile-controls {
+                display: flex;
+            }
+
+            #gameCanvas {
+                width: min(800px, calc(100vw - (2 * var(--mobileSideWidth) + 20px)));
+                height: auto;
+                touch-action: none;
+            }
+
+            #gameContainer {
+                border: none;
+            }
+        }
+
+        .mobile-force .mobile-controls {
+            display: flex !important;
+            background: rgba(255, 0, 0, 0.1);
+            border: 2px dashed #FF0000;
+        }
+
+        .mobile-force #gameCanvas {
+            width: min(800px, calc(100vw - (2 * var(--mobileSideWidth, 120px) + 20px))) !important;
+            height: auto;
+            touch-action: none;
+            border: 2px dashed #00FF00;
+        }
+
+        .mobile-force #gameContainer {
+            border: none;
+        }
+
+        .joystick-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .joystick-base {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 215, 0, 0.2);
+            border: 3px solid #FFD700;
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+
+        .joystick-handle {
+            width: 40px;
+            height: 40px;
+            background: radial-gradient(circle, #FFD700, #FFA500);
+            border: 2px solid #FF8C00;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="mobileLayout">
+        <div id="mobileLeftControls" class="mobile-controls">
+            <div class="joystick-container">
+                <div class="joystick-base">
+                    <div class="joystick-handle" id="joystickHandle"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div class="ui-panel">
+            <div class="stat">Money: <span id="money">0</span></div>
+            <div class="stat">Wood: <span id="wood">0</span></div>
+            <div class="stat">Health: <span id="health">100</span></div>
+            <div class="stat">Map: <span id="currentMap">Forest</span></div>
+            <div class="stat">Time: <span id="timeOfDay">Day</span></div>
+        </div>
+
+        <div class="qol-panel" id="qolPanel">
+            <h3 onclick="toggleQolPanel()" style="cursor: pointer; user-select: none;">Quality of Life <span id="qolToggle">▼</span></h3>
+            <div id="qolContent">
+                <label><input type="checkbox" id="qolAutoEat">Auto-eat bread (below 30%)</label>
+                <label><input type="checkbox" id="qolDamageNumbers" checked>Show damage numbers</label>
+                <label><input type="checkbox" id="qolHealthRegen">Health regen</label>
+                <label><input type="checkbox" id="qolInventoryHotkeys" checked>Inventory hotkeys</label>
+            </div>
+        </div>
+        
+        <div class="testing-panel" id="testingPanel">
+            <h3 onclick="toggleTestingPanel()" style="cursor: pointer; user-select: none;">Testing Panel <span id="testingToggle">▼</span></h3>
+            <div id="testingContent">
+                <button onclick="testAddMoney()" style="width: 100%; margin: 2px 0; padding: 5px;">Add $100</button>
+                <button onclick="testAddWood()" style="width: 100%; margin: 2px 0; padding: 5px;">Add 10 Wood</button>
+                <button onclick="testHeal()" style="width: 100%; margin: 2px 0; padding: 5px;">Full Heal</button>
+                <button onclick="testAddBread()" style="width: 100%; margin: 2px 0; padding: 5px;">Add 5 Bread</button>
+                <button onclick="testSpawnWolf()" style="width: 100%; margin: 2px 0; padding: 5px;">Spawn Wolf</button>
+                <button onclick="testSpawnBoss()" style="width: 100%; margin: 2px 0; padding: 5px;">Spawn Boss</button>
+                <button onclick="testToggleNight()" style="width: 100%; margin: 2px 0; padding: 5px;">Toggle Day/Night</button>
+                <button onclick="testSkipToNight10()" style="width: 100%; margin: 2px 0; padding: 5px;">Skip to Night 10</button>
+                <button onclick="testUnlockAllWeapons()" style="width: 100%; margin: 2px 0; padding: 5px;">Unlock All Weapons</button>
+                <button onclick="testUnlockAllArmor()" style="width: 100%; margin: 2px 0; padding: 5px;">Unlock All Armor</button>
+                <button onclick="testUnlockMaps()" style="width: 100%; margin: 2px 0; padding: 5px;">Unlock All Maps</button>
+                <button onclick="testKillAllEnemies()" style="width: 100%; margin: 2px 0; padding: 5px;">Kill All Enemies</button>
+                <button onclick="testResetGame()" style="width: 100%; margin: 2px 0; padding: 5px; background: #FF6B6B;">Reset Game</button>
+                <button onclick="testToggleMobileControls()" style="width: 100%; margin: 2px 0; padding: 5px; background: #4169E1;">Toggle Mobile Controls</button>
+            </div>
+        </div>
+        
+        <div id="shop">
+            <button class="close-btn" id="closeShop">X</button>
+            <h2>Shop</h2>
+            <div class="shop-tabs">
+                <button class="shop-tab active" onclick="switchShopTab('food')">Food</button>
+                <button class="shop-tab" onclick="switchShopTab('armor')">Armor</button>
+                <button class="shop-tab" onclick="switchShopTab('weapons')">Weapons</button>
+                <button class="shop-tab" onclick="switchShopTab('maps')">Maps</button>
+            </div>
+            <div id="food-content" class="shop-content active"></div>
+            <div id="armor-content" class="shop-content"></div>
+            <div id="weapons-content" class="shop-content"></div>
+            <div id="maps-content" class="shop-content"></div>
+        </div>
+        
+            <div id="inventory">
+                <button class="close-btn" id="closeInventory">X</button>
+                <h2>Inventory</h2>
+                <div id="inventoryItems"></div>
+            </div>
+        </div>
+
+        <div id="mobileRightControls" class="mobile-controls">
+            <button id="mobileAttack" class="mobile-btn" type="button">ATTACK</button>
+            <button id="mobileEat" class="mobile-btn" type="button">EAT</button>
+            <button id="mobileInventory" class="mobile-btn" type="button">INV</button>
+        </div>
+    </div>
+    
+    <script src="fight-the-faheem.js"></script>
+</body>
+</html>

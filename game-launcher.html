@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Launcher</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .game-frame {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #333;
+            background: #000;
+        }
+        .instructions {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fight The Faheem - Game Launcher</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <p>If the game doesn't load below, you may need to run a local server.</p>
+            <p>Option 1: Install Python and run: <code>python -m http.server 8000</code></p>
+            <p>Option 2: Use VS Code Live Server extension</p>
+            <p>Option 3: Open the HTML file directly in your browser (may have some limitations)</p>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="fight%20the%20fa.html" target="_blank" style="display: inline-block; padding: 12px 18px; font-size: 16px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">
+                Open Game
+            </a>
+        </div>
+
+        <div class="instructions" style="margin-top: 20px; text-align: left;">
+            <h3>Why it was blank</h3>
+            <p>Most browsers block loading a local <code>file://</code> page inside an <code>&lt;iframe&gt;</code>. Opening the game directly works.</p>
+            <p>If it still shows blank when opened directly, open DevTools (F12) and check the Console for errors.</p>
+        </div>
+    </div>
+</body>
+</html>
