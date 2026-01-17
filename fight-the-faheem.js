@@ -2,6 +2,12 @@
 let introActive = true;
 let introCanvas, introCtx;
 let introAnimFrame = 0;
+let introPlayer = null;
+let introTrees = [];
+let introTargetTreeIndex = 0;
+let introCamX = 0;
+let introCamY = 0;
+let introWoodParticles = [];
 
 function initIntroScreen() {
     introCanvas = document.getElementById('introCanvas');
@@ -23,6 +29,51 @@ function initIntroScreen() {
             hideIntroScreen();
         });
     }
+
+    const initWorld = () => {
+        introTrees = [];
+        introWoodParticles = [];
+        introTargetTreeIndex = 0;
+        introAnimFrame = 0;
+
+        const baseY = 240;
+        const spacing = 140;
+        for (let i = 0; i < 6; i++) {
+            const x = 80 + i * spacing;
+            const type = (i % 3 === 0) ? 'autumn' : (i % 3 === 1) ? 'dark' : 'normal';
+            const t = {
+                x,
+                y: baseY,
+                type,
+                width: 30,
+                height: 40,
+                maxHealth: 10,
+                health: 10,
+                alive: true,
+                trunkColor: type === 'dark' ? '#654321' : '#8B4513',
+                leavesColor: type === 'autumn' ? '#FF8C00' : (type === 'dark' ? '#006400' : '#228B22')
+            };
+            introTrees.push(t);
+        }
+
+        introPlayer = {
+            x: introTrees[0].x - 50,
+            y: introTrees[0].y + 10,
+            width: 20,
+            height: 30,
+            speed: 2.2,
+            color: '#FF6B6B',
+            cutting: false,
+            cutTimer: 0,
+            facing: 'right',
+            state: 'walk'
+        };
+
+        introCamX = introPlayer.x;
+        introCamY = introPlayer.y;
+    };
+
+    initWorld();
     
     requestAnimationFrame(drawIntroAnimation);
 }
@@ -40,102 +91,193 @@ function drawIntroAnimation() {
     
     const w = introCanvas.width;
     const h = introCanvas.height;
-    const scale = Math.min(w / 400, h / 300);
-    
-    // Sky gradient (mountain biome)
+
+    introAnimFrame++;
+
+    const worldW = 900;
+    const worldH = 320;
+    const groundY = 260;
+
+    if (introPlayer && introTrees.length) {
+        const targetTree = introTrees[introTargetTreeIndex];
+        const targetX = targetTree ? (targetTree.x - 45) : introPlayer.x;
+
+        if (introPlayer.state === 'walk') {
+            introPlayer.cutting = false;
+            introPlayer.cutTimer = 0;
+            const dx = targetX - introPlayer.x;
+            if (Math.abs(dx) > 2) {
+                introPlayer.facing = dx < 0 ? 'left' : 'right';
+                introPlayer.x += Math.sign(dx) * introPlayer.speed;
+            } else {
+                introPlayer.state = 'chop';
+                introPlayer.cutting = true;
+                introPlayer.cutTimer = 30;
+            }
+        } else if (introPlayer.state === 'chop') {
+            introPlayer.cutting = true;
+            if (introPlayer.cutTimer > 0) {
+                introPlayer.cutTimer--;
+            } else {
+                introPlayer.cutTimer = 30;
+                if (targetTree && targetTree.alive) {
+                    targetTree.health -= 2;
+                    for (let i = 0; i < 6; i++) {
+                        introWoodParticles.push({
+                            x: targetTree.x + 10 + Math.random() * 10,
+                            y: targetTree.y - 8 + Math.random() * 16,
+                            vx: 0.5 + Math.random() * 1.2,
+                            vy: -1.2 + Math.random() * -0.6,
+                            life: 20 + Math.random() * 10
+                        });
+                    }
+
+                    if (targetTree.health <= 0) {
+                        targetTree.alive = false;
+                        targetTree.health = 0;
+                        introTargetTreeIndex = (introTargetTreeIndex + 1) % introTrees.length;
+                        if (introTargetTreeIndex === 0) {
+                            for (const t of introTrees) {
+                                t.alive = true;
+                                t.health = t.maxHealth;
+                            }
+                        }
+                        introPlayer.state = 'walk';
+                    }
+                }
+            }
+        }
+
+        const desiredCamX = introPlayer.x;
+        const desiredCamY = introPlayer.y;
+        introCamX += (desiredCamX - introCamX) * 0.06;
+        introCamY += (desiredCamY - introCamY) * 0.06;
+    }
+
+    const camLeft = introCamX - worldW / 2;
+    const camTop = introCamY - worldH / 2;
+
     const sky = introCtx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#4a6fa5');
-    sky.addColorStop(1, '#87CEEB');
+    sky.addColorStop(0, '#87CEEB');
+    sky.addColorStop(0.6, '#B0E0E6');
+    sky.addColorStop(1, '#E0F6FF');
     introCtx.fillStyle = sky;
     introCtx.fillRect(0, 0, w, h);
-    
-    // Mountains
+
+    const sx = w / worldW;
+    const sy = h / worldH;
+    const s = Math.min(sx, sy);
+    introCtx.save();
+    introCtx.translate(w / 2, h / 2);
+    introCtx.scale(s, s);
+    introCtx.translate(-worldW / 2, -worldH / 2);
+
     introCtx.fillStyle = '#6b8e6b';
     introCtx.beginPath();
-    introCtx.moveTo(0, h * 0.7);
-    introCtx.lineTo(w * 0.2, h * 0.35);
-    introCtx.lineTo(w * 0.4, h * 0.6);
-    introCtx.lineTo(w * 0.6, h * 0.3);
-    introCtx.lineTo(w * 0.85, h * 0.55);
-    introCtx.lineTo(w, h * 0.4);
-    introCtx.lineTo(w, h);
-    introCtx.lineTo(0, h);
+    introCtx.moveTo(0, 190);
+    introCtx.lineTo(120, 90);
+    introCtx.lineTo(240, 170);
+    introCtx.lineTo(380, 80);
+    introCtx.lineTo(520, 170);
+    introCtx.lineTo(680, 95);
+    introCtx.lineTo(860, 180);
+    introCtx.lineTo(worldW, 140);
+    introCtx.lineTo(worldW, worldH);
+    introCtx.lineTo(0, worldH);
     introCtx.fill();
-    
-    // Ground
+
     introCtx.fillStyle = '#5a7d5a';
-    introCtx.fillRect(0, h * 0.75, w, h * 0.25);
-    
-    // Draw trees (pine trees for mountain biome)
-    const treePositions = [0.15, 0.35, 0.55, 0.75, 0.9];
-    for (let i = 0; i < treePositions.length; i++) {
-        const tx = w * treePositions[i];
-        const ty = h * 0.75;
-        const ts = scale * 1.2;
-        
-        // Trunk
-        introCtx.fillStyle = '#8B4513';
-        introCtx.fillRect(tx - 4 * ts, ty - 20 * ts, 8 * ts, 30 * ts);
-        
-        // Pine foliage (triangles)
-        introCtx.fillStyle = '#228B22';
-        introCtx.beginPath();
-        introCtx.moveTo(tx, ty - 60 * ts);
-        introCtx.lineTo(tx - 20 * ts, ty - 20 * ts);
-        introCtx.lineTo(tx + 20 * ts, ty - 20 * ts);
-        introCtx.fill();
-        
-        introCtx.beginPath();
-        introCtx.moveTo(tx, ty - 80 * ts);
-        introCtx.lineTo(tx - 15 * ts, ty - 45 * ts);
-        introCtx.lineTo(tx + 15 * ts, ty - 45 * ts);
-        introCtx.fill();
-    }
-    
-    // Draw player mining animation
-    const playerX = w * 0.5;
-    const playerY = h * 0.75;
-    const ps = scale * 1.5;
-    
-    introAnimFrame++;
-    const swingPhase = Math.sin(introAnimFrame * 0.15) * 0.5 + 0.5;
-    
-    // Player body
-    introCtx.fillStyle = '#FF6B6B';
-    introCtx.fillRect(playerX - 10 * ps, playerY - 30 * ps, 20 * ps, 30 * ps);
-    
-    // Player head
-    introCtx.fillStyle = '#FFD700';
-    introCtx.beginPath();
-    introCtx.arc(playerX, playerY - 38 * ps, 10 * ps, 0, Math.PI * 2);
-    introCtx.fill();
-    
-    // Axe (swinging)
-    const axeAngle = -0.8 + swingPhase * 1.2;
+    introCtx.fillRect(0, groundY, worldW, worldH - groundY);
+
     introCtx.save();
-    introCtx.translate(playerX + 10 * ps, playerY - 15 * ps);
-    introCtx.rotate(axeAngle);
-    
-    // Axe handle
-    introCtx.fillStyle = '#8B4513';
-    introCtx.fillRect(0, 0, 25 * ps, 4 * ps);
-    
-    // Axe head
-    introCtx.fillStyle = '#888';
-    introCtx.fillRect(20 * ps, -6 * ps, 10 * ps, 16 * ps);
-    
-    introCtx.restore();
-    
-    // Wood particles when "hitting"
-    if (swingPhase > 0.8) {
-        introCtx.fillStyle = '#8B4513';
-        for (let p = 0; p < 3; p++) {
-            const px = playerX + 40 * ps + Math.random() * 20 * ps;
-            const py = playerY - 20 * ps + Math.random() * 20 * ps;
-            introCtx.fillRect(px, py, 4 * ps, 4 * ps);
+    introCtx.translate(-camLeft, -camTop);
+
+    for (const t of introTrees) {
+        if (!t.alive) continue;
+        introCtx.fillStyle = t.trunkColor;
+        introCtx.fillRect(t.x - 5, t.y, 10, 20);
+        introCtx.fillStyle = t.leavesColor;
+        introCtx.fillRect(t.x - 15, t.y - 20, 30, 25);
+        if (t.health < t.maxHealth) {
+            introCtx.fillStyle = '#FF0000';
+            introCtx.fillRect(t.x - 15, t.y - 30, 30, 4);
+            introCtx.fillStyle = '#00FF00';
+            introCtx.fillRect(t.x - 15, t.y - 30, 30 * (t.health / t.maxHealth), 4);
         }
     }
-    
+
+    if (introPlayer) {
+        const p = introPlayer;
+
+        introCtx.fillStyle = p.color;
+        introCtx.fillRect(p.x - p.width/2, p.y - p.height/2, p.width, p.height);
+
+        introCtx.fillStyle = '#FDBCB4';
+        introCtx.fillRect(p.x - p.width/2 - 5, p.y - p.height/2 + 5, 5, 15);
+        introCtx.fillRect(p.x + p.width/2, p.y - p.height/2 + 5, 5, 15);
+
+        introCtx.fillStyle = '#4169E1';
+        introCtx.fillRect(p.x - 8, p.y + p.height/2 - 5, 6, 12);
+        introCtx.fillRect(p.x + 2, p.y + p.height/2 - 5, 6, 12);
+
+        introCtx.fillStyle = '#FDBCB4';
+        introCtx.fillRect(p.x - 10, p.y - p.height/2 - 12, 20, 15);
+
+        introCtx.fillStyle = '#000';
+        if (p.facing === 'left') {
+            introCtx.fillRect(p.x - 9, p.y - p.height/2 - 8, 3, 3);
+            introCtx.fillRect(p.x - 3, p.y - p.height/2 - 8, 3, 3);
+        } else if (p.facing === 'right') {
+            introCtx.fillRect(p.x + 0, p.y - p.height/2 - 8, 3, 3);
+            introCtx.fillRect(p.x + 6, p.y - p.height/2 - 8, 3, 3);
+        } else {
+            introCtx.fillRect(p.x - 6, p.y - p.height/2 - 8, 3, 3);
+            introCtx.fillRect(p.x + 3, p.y - p.height/2 - 8, 3, 3);
+        }
+
+        introCtx.fillStyle = '#8B4513';
+        introCtx.fillRect(p.x - 10, p.y - p.height/2 - 15, 20, 5);
+
+        if (p.cutting) {
+            introCtx.save();
+            introCtx.translate(p.x, p.y);
+            if (p.facing === 'left') {
+                introCtx.rotate(Math.PI + Math.PI / 3);
+            } else {
+                introCtx.rotate(-Math.PI / 3);
+            }
+
+            introCtx.fillStyle = '#8B4513';
+            introCtx.fillRect(10, -2, 2, 2);
+            introCtx.fillRect(12, 0, 2, 2);
+            introCtx.fillRect(14, 2, 2, 2);
+            introCtx.fillRect(16, 4, 2, 2);
+            introCtx.fillRect(18, 6, 2, 2);
+            introCtx.fillRect(20, 8, 2, 2);
+
+            introCtx.fillStyle = '#C0C0C0';
+            introCtx.fillRect(18, -8, 8, 8);
+            introCtx.fillStyle = '#000000';
+            introCtx.fillRect(26, -6, 2, 6);
+            introCtx.fillRect(20, -10, 4, 2);
+            introCtx.restore();
+        }
+    }
+
+    for (let i = introWoodParticles.length - 1; i >= 0; i--) {
+        const p = introWoodParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.08;
+        p.life -= 1;
+        introCtx.fillStyle = '#8B4513';
+        introCtx.fillRect(p.x, p.y, 3, 3);
+        if (p.life <= 0) introWoodParticles.splice(i, 1);
+    }
+
+    introCtx.restore();
+    introCtx.restore();
+
     requestAnimationFrame(drawIntroAnimation);
 }
 
@@ -2271,6 +2413,14 @@ window.addEventListener('load', function() {
     if (!joystickHandle) return;
     const joystickBase = joystickHandle.parentElement;
     let joystickPointerId = null;
+
+    const forceEndMoveJoystick = () => {
+        if (!joystickActive && joystickPointerId === null) return;
+        joystickActive = false;
+        joystickPointerId = null;
+        resetJoystick(joystickHandle);
+        resetJoystickBase(joystickBase);
+    };
     
     const handleStart = (e) => {
         e.preventDefault();
@@ -2293,16 +2443,29 @@ window.addEventListener('load', function() {
     const handleEnd = (e) => {
         if (e.pointerId !== joystickPointerId) return;
         e.preventDefault();
-        joystickActive = false;
-        joystickPointerId = null;
-        resetJoystick(joystickHandle);
-        resetJoystickBase(joystickBase);
+        forceEndMoveJoystick();
     };
 
     joystickBase.addEventListener('pointerdown', handleStart);
     joystickBase.addEventListener('pointermove', handleMove);
     joystickBase.addEventListener('pointerup', handleEnd);
     joystickBase.addEventListener('pointercancel', handleEnd);
+    joystickBase.addEventListener('pointerleave', forceEndMoveJoystick);
+    joystickBase.addEventListener('lostpointercapture', forceEndMoveJoystick);
+
+    const globalEnd = (e) => {
+        if (joystickPointerId === null) return;
+        if (e.pointerId !== joystickPointerId) return;
+        forceEndMoveJoystick();
+    };
+
+    window.addEventListener('pointerup', globalEnd, true);
+    window.addEventListener('pointercancel', globalEnd, true);
+
+    window.addEventListener('blur', forceEndMoveJoystick);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) forceEndMoveJoystick();
+    });
 });
 
 // Aim joystick state (right side)
