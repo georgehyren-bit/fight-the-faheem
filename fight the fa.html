@@ -64,6 +64,41 @@
                 display: flex;
             }
         }
+
+        #safariBarHint {
+            display: none;
+            position: fixed;
+            left: 50%;
+            bottom: 8px;
+            transform: translateX(-50%);
+            width: min(520px, calc(100vw - 16px));
+            background: rgba(0, 0, 0, 0.88);
+            color: #FFD700;
+            border: 2px solid #444;
+            border-radius: 12px;
+            padding: 10px 12px;
+            z-index: 20001;
+            font-size: 14px;
+            line-height: 1.25;
+        }
+
+        #safariBarHint .hint-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #safariBarHint button {
+            background: rgba(255, 215, 0, 0.15);
+            color: #FFD700;
+            border: 2px solid #FFD700;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-family: inherit;
+            font-weight: bold;
+            touch-action: manipulation;
+        }
         
         #gameContainer {
             position: relative;
@@ -484,6 +519,12 @@
 </head>
 <body>
     <div id="rotateOverlay">Rotate your phone to landscape</div>
+    <div id="safariBarHint">
+        <div class="hint-row">
+            <div>For more space: tap <b>aA</b> in Safari and choose <b>Hide Toolbar</b>.</div>
+            <button id="safariBarHintClose" type="button">OK</button>
+        </div>
+    </div>
     <div id="mobileLayout">
         <div id="mobileLeftControls" class="mobile-controls">
             <div class="joystick-container">
@@ -574,14 +615,27 @@
 
     <script>
         (function () {
-            const hideAddressBar = () => {
-                setTimeout(() => {
-                    try { window.scrollTo(0, 1); } catch (_) { }
-                }, 50);
-            };
+            const isIPhone = /iPhone/i.test(navigator.userAgent || '');
+            const isSafari = /Safari/i.test(navigator.userAgent || '') && !/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent || '');
+            const hint = document.getElementById('safariBarHint');
+            const hintClose = document.getElementById('safariBarHintClose');
 
-            window.addEventListener('load', hideAddressBar);
-            window.addEventListener('orientationchange', hideAddressBar);
+            if (isIPhone && isSafari && hint && hintClose) {
+                const key = 'safariBarHintDismissed_v1';
+                const dismissed = (() => {
+                    try { return localStorage.getItem(key) === '1'; } catch (_) { return false; }
+                })();
+
+                if (!dismissed) {
+                    hint.style.display = 'block';
+                }
+
+                hintClose.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    hint.style.display = 'none';
+                    try { localStorage.setItem(key, '1'); } catch (_) { }
+                });
+            }
 
             document.addEventListener('gesturestart', (e) => {
                 e.preventDefault();
