@@ -66,6 +66,16 @@ function updateUI() {
     } else {
         document.querySelector('#currentDay span').textContent = currentDay;
     }
+
+    updateBowEquippedUI();
+}
+
+function updateBowEquippedUI() {
+    const body = document.body;
+    if (!body) return;
+    const currentWeapon = weapons[currentAxeIndex];
+    const bowEquipped = !!(currentWeapon && currentWeapon.type === 'bow' && currentWeapon.owned && currentMap === 'mountains');
+    body.classList.toggle('bow-equipped', bowEquipped);
 }
 
 // Day/Night cycle function
@@ -2100,10 +2110,12 @@ function showUnlockMessage(mapName) {
 
 // Initialize joystick events with multi-touch support
 let joystickTouchId = null; // Track specific touch for joystick
+let joystickCenter = { x: 0, y: 0 };
 
 window.addEventListener('load', function() {
     const joystickHandle = document.getElementById('joystickHandle');
     if (!joystickHandle) return;
+    const joystickBase = joystickHandle.parentElement;
     
     const handleStart = (e) => {
         e.preventDefault();
@@ -2113,11 +2125,12 @@ window.addEventListener('load', function() {
             const touch = e.touches[0];
             joystickTouchId = touch.identifier;
             joystickActive = true;
-            updateJoystickPosition(joystickHandle, touch.clientX, touch.clientY);
+            // Dynamic joystick: center starts where finger is placed
+            setJoystickBaseCenter(joystickBase, touch.clientX, touch.clientY);
         } else {
             // Mouse
             joystickActive = true;
-            updateJoystickPosition(joystickHandle, e.clientX, e.clientY);
+            setJoystickBaseCenter(joystickBase, e.clientX, e.clientY);
         }
     };
     
@@ -2135,11 +2148,11 @@ window.addEventListener('load', function() {
             }
             if (joystickTouch) {
                 e.preventDefault();
-                updateJoystickPosition(joystickHandle, joystickTouch.clientX, joystickTouch.clientY);
+                updateJoystickPositionDynamic(joystickHandle, joystickTouch.clientX, joystickTouch.clientY);
             }
         } else {
             e.preventDefault();
-            updateJoystickPosition(joystickHandle, e.clientX, e.clientY);
+            updateJoystickPositionDynamic(joystickHandle, e.clientX, e.clientY);
         }
     };
     
@@ -2151,6 +2164,7 @@ window.addEventListener('load', function() {
                     joystickActive = false;
                     joystickTouchId = null;
                     resetJoystick(joystickHandle);
+                    resetJoystickBase(joystickBase);
                     break;
                 }
             }
@@ -2159,16 +2173,16 @@ window.addEventListener('load', function() {
             if (!joystickActive) return;
             joystickActive = false;
             resetJoystick(joystickHandle);
+            resetJoystickBase(joystickBase);
         }
     };
     
     // Mouse events
-    joystickHandle.addEventListener('mousedown', handleStart);
+    joystickBase.addEventListener('mousedown', handleStart);
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleEnd);
     
     // Touch events - use joystick base for better hit area
-    const joystickBase = joystickHandle.parentElement;
     joystickBase.addEventListener('touchstart', handleStart, { passive: false });
     document.addEventListener('touchmove', handleMove, { passive: false });
     document.addEventListener('touchend', handleEnd, { passive: false });
@@ -2179,6 +2193,7 @@ window.addEventListener('load', function() {
 let aimJoystickTouchId = null;
 let aimJoystickActive = false;
 let aimJoystickVector = { x: 0, y: 0 };
+let aimJoystickCenter = { x: 0, y: 0 };
 
 window.addEventListener('load', function() {
     const aimHandle = document.getElementById('aimJoystickHandle');
@@ -2190,16 +2205,39 @@ window.addEventListener('load', function() {
         return currentWeapon && currentWeapon.type === 'bow' && currentWeapon.owned && currentMap === 'mountains';
     };
 
-    const updateAimJoystick = (clientX, clientY) => {
+    const setAimBaseCenter = (clientX, clientY) => {
         const rect = aimBase.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
+        const dx = clientX - centerX;
+        const dy = clientY - centerY;
+        aimBase.style.transform = `translate(${dx}px, ${dy}px)`;
+        aimJoystickCenter = { x: clientX, y: clientY };
+    };
+
+    const resetAimBase = () => {
+        aimBase.style.transform = 'translate(0px, 0px)';
+        const rect = aimBase.getBoundingClientRect();
+        aimJoystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const updateAimJoystickDynamic = (clientX, clientY) => {
+        const rect = aimBase.getBoundingClientRect();
+        const centerX = aimJoystickCenter.x || (rect.left + rect.width / 2);
+        const centerY = aimJoystickCenter.y || (rect.top + rect.height / 2);
 
         let deltaX = clientX - centerX;
         let deltaY = clientY - centerY;
 
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
         const maxDistance = rect.width / 2 - 20;
+
+        const deadZonePx = 8;
+        if (distance < deadZonePx) {
+            aimHandle.style.transform = 'translate(-50%, -50%)';
+            aimJoystickVector = { x: 0, y: 0 };
+            return;
+        }
 
         if (distance > maxDistance) {
             deltaX = (deltaX / distance) * maxDistance;
@@ -2212,7 +2250,6 @@ window.addEventListener('load', function() {
         const normalizedY = deltaY / maxDistance;
         aimJoystickVector = { x: normalizedX, y: normalizedY };
 
-        // Also update pointer aim fallback so any other code that uses mouseX/mouseY keeps working
         if (Math.abs(normalizedX) > 0.02 || Math.abs(normalizedY) > 0.02) {
             mouseX = player.x + normalizedX * 100;
             mouseY = player.y + normalizedY * 100;
@@ -2261,11 +2298,13 @@ window.addEventListener('load', function() {
             const touch = e.touches[0];
             aimJoystickTouchId = touch.identifier;
             aimJoystickActive = true;
-            updateAimJoystick(touch.clientX, touch.clientY);
+            setAimBaseCenter(touch.clientX, touch.clientY);
+            resetAimJoystick();
             startBowCharge();
         } else {
             aimJoystickActive = true;
-            updateAimJoystick(e.clientX, e.clientY);
+            setAimBaseCenter(e.clientX, e.clientY);
+            resetAimJoystick();
             startBowCharge();
         }
     };
@@ -2283,10 +2322,10 @@ window.addEventListener('load', function() {
             }
             if (!aimTouch) return;
             e.preventDefault();
-            updateAimJoystick(aimTouch.clientX, aimTouch.clientY);
+            updateAimJoystickDynamic(aimTouch.clientX, aimTouch.clientY);
         } else {
             e.preventDefault();
-            updateAimJoystick(e.clientX, e.clientY);
+            updateAimJoystickDynamic(e.clientX, e.clientY);
         }
     };
 
@@ -2297,6 +2336,7 @@ window.addEventListener('load', function() {
                     aimJoystickActive = false;
                     aimJoystickTouchId = null;
                     resetAimJoystick();
+                    resetAimBase();
                     releaseBowCharge();
                     break;
                 }
@@ -2305,6 +2345,7 @@ window.addEventListener('load', function() {
             if (!aimJoystickActive) return;
             aimJoystickActive = false;
             resetAimJoystick();
+            resetAimBase();
             releaseBowCharge();
         }
     };
@@ -2365,6 +2406,65 @@ function resetJoystick(handle) {
     keys['a'] = false;
     keys['d'] = false;
     joystickPosition = { x: 0, y: 0 };
+}
+
+function setJoystickBaseCenter(baseEl, clientX, clientY) {
+    const rect = baseEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
+    baseEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    joystickCenter = { x: clientX, y: clientY };
+}
+
+function resetJoystickBase(baseEl) {
+    baseEl.style.transform = 'translate(0px, 0px)';
+    const rect = baseEl.getBoundingClientRect();
+    joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function updateJoystickPositionDynamic(handle, x, y) {
+    const base = handle.parentElement;
+    const rect = base.getBoundingClientRect();
+    const centerX = joystickCenter.x || (rect.left + rect.width / 2);
+    const centerY = joystickCenter.y || (rect.top + rect.height / 2);
+    
+    let deltaX = x - centerX;
+    let deltaY = y - centerY;
+    
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const maxDistance = rect.width / 2 - 20;
+
+    // Roblox-style: don't move until finger actually drags a bit
+    const deadZonePx = 8;
+    if (distance < deadZonePx) {
+        handle.style.transform = 'translate(-50%, -50%)';
+        keys['w'] = false;
+        keys['s'] = false;
+        keys['a'] = false;
+        keys['d'] = false;
+        joystickPosition = { x: 0, y: 0 };
+        return;
+    }
+    
+    if (distance > maxDistance) {
+        deltaX = (deltaX / distance) * maxDistance;
+        deltaY = (deltaY / distance) * maxDistance;
+    }
+    
+    handle.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+    
+    const threshold = 0.3;
+    const normalizedX = deltaX / maxDistance;
+    const normalizedY = deltaY / maxDistance;
+    
+    keys['w'] = normalizedY < -threshold;
+    keys['s'] = normalizedY > threshold;
+    keys['a'] = normalizedX < -threshold;
+    keys['d'] = normalizedX > threshold;
+    
+    joystickPosition = { x: normalizedX, y: normalizedY };
 }
 
 // Map functions

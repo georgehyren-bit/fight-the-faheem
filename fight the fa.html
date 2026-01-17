@@ -246,8 +246,12 @@
         }
 
         .mobile-controls.right {
-            justify-content: flex-end;
+            justify-content: center;
             padding-bottom: 10px;
+        }
+
+        body.bow-equipped .mobile-controls.right {
+            justify-content: flex-end;
         }
 
         .mobile-btn {
@@ -324,7 +328,7 @@
             }
 
             .testing-panel {
-                display: none;
+                display: block;
             }
         }
 
@@ -383,13 +387,21 @@
             flex-direction: column;
             gap: 10px;
         }
+
+        #aimJoystickContainer {
+            display: none;
+        }
+
+        body.bow-equipped #aimJoystickContainer {
+            display: flex;
+        }
     </style>
 </head>
 <body>
     <div id="mobileLayout">
         <div id="mobileLeftControls" class="mobile-controls">
             <div class="joystick-container">
-                <div class="joystick-base">
+                <div class="joystick-base" id="moveJoystickBase">
                     <div class="joystick-handle" id="joystickHandle"></div>
                 </div>
             </div>
@@ -459,7 +471,7 @@
         </div>
 
         <div id="mobileRightControls" class="mobile-controls right">
-            <div class="joystick-container" style="height: auto;">
+            <div class="joystick-container" id="aimJoystickContainer" style="height: auto;">
                 <div class="joystick-base">
                     <div class="joystick-handle" id="aimJoystickHandle"></div>
                 </div>
