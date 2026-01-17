@@ -1,3 +1,147 @@
+// ===== INTRO SCREEN =====
+let introActive = true;
+let introCanvas, introCtx;
+let introAnimFrame = 0;
+
+function initIntroScreen() {
+    introCanvas = document.getElementById('introCanvas');
+    if (!introCanvas) return;
+    introCtx = introCanvas.getContext('2d');
+    
+    const resize = () => {
+        introCanvas.width = window.innerWidth;
+        introCanvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', hideIntroScreen);
+        startBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            hideIntroScreen();
+        });
+    }
+    
+    requestAnimationFrame(drawIntroAnimation);
+}
+
+function hideIntroScreen() {
+    introActive = false;
+    const introScreen = document.getElementById('introScreen');
+    if (introScreen) {
+        introScreen.classList.add('hidden');
+    }
+}
+
+function drawIntroAnimation() {
+    if (!introActive || !introCtx) return;
+    
+    const w = introCanvas.width;
+    const h = introCanvas.height;
+    const scale = Math.min(w / 400, h / 300);
+    
+    // Sky gradient (mountain biome)
+    const sky = introCtx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#4a6fa5');
+    sky.addColorStop(1, '#87CEEB');
+    introCtx.fillStyle = sky;
+    introCtx.fillRect(0, 0, w, h);
+    
+    // Mountains
+    introCtx.fillStyle = '#6b8e6b';
+    introCtx.beginPath();
+    introCtx.moveTo(0, h * 0.7);
+    introCtx.lineTo(w * 0.2, h * 0.35);
+    introCtx.lineTo(w * 0.4, h * 0.6);
+    introCtx.lineTo(w * 0.6, h * 0.3);
+    introCtx.lineTo(w * 0.85, h * 0.55);
+    introCtx.lineTo(w, h * 0.4);
+    introCtx.lineTo(w, h);
+    introCtx.lineTo(0, h);
+    introCtx.fill();
+    
+    // Ground
+    introCtx.fillStyle = '#5a7d5a';
+    introCtx.fillRect(0, h * 0.75, w, h * 0.25);
+    
+    // Draw trees (pine trees for mountain biome)
+    const treePositions = [0.15, 0.35, 0.55, 0.75, 0.9];
+    for (let i = 0; i < treePositions.length; i++) {
+        const tx = w * treePositions[i];
+        const ty = h * 0.75;
+        const ts = scale * 1.2;
+        
+        // Trunk
+        introCtx.fillStyle = '#8B4513';
+        introCtx.fillRect(tx - 4 * ts, ty - 20 * ts, 8 * ts, 30 * ts);
+        
+        // Pine foliage (triangles)
+        introCtx.fillStyle = '#228B22';
+        introCtx.beginPath();
+        introCtx.moveTo(tx, ty - 60 * ts);
+        introCtx.lineTo(tx - 20 * ts, ty - 20 * ts);
+        introCtx.lineTo(tx + 20 * ts, ty - 20 * ts);
+        introCtx.fill();
+        
+        introCtx.beginPath();
+        introCtx.moveTo(tx, ty - 80 * ts);
+        introCtx.lineTo(tx - 15 * ts, ty - 45 * ts);
+        introCtx.lineTo(tx + 15 * ts, ty - 45 * ts);
+        introCtx.fill();
+    }
+    
+    // Draw player mining animation
+    const playerX = w * 0.5;
+    const playerY = h * 0.75;
+    const ps = scale * 1.5;
+    
+    introAnimFrame++;
+    const swingPhase = Math.sin(introAnimFrame * 0.15) * 0.5 + 0.5;
+    
+    // Player body
+    introCtx.fillStyle = '#FF6B6B';
+    introCtx.fillRect(playerX - 10 * ps, playerY - 30 * ps, 20 * ps, 30 * ps);
+    
+    // Player head
+    introCtx.fillStyle = '#FFD700';
+    introCtx.beginPath();
+    introCtx.arc(playerX, playerY - 38 * ps, 10 * ps, 0, Math.PI * 2);
+    introCtx.fill();
+    
+    // Axe (swinging)
+    const axeAngle = -0.8 + swingPhase * 1.2;
+    introCtx.save();
+    introCtx.translate(playerX + 10 * ps, playerY - 15 * ps);
+    introCtx.rotate(axeAngle);
+    
+    // Axe handle
+    introCtx.fillStyle = '#8B4513';
+    introCtx.fillRect(0, 0, 25 * ps, 4 * ps);
+    
+    // Axe head
+    introCtx.fillStyle = '#888';
+    introCtx.fillRect(20 * ps, -6 * ps, 10 * ps, 16 * ps);
+    
+    introCtx.restore();
+    
+    // Wood particles when "hitting"
+    if (swingPhase > 0.8) {
+        introCtx.fillStyle = '#8B4513';
+        for (let p = 0; p < 3; p++) {
+            const px = playerX + 40 * ps + Math.random() * 20 * ps;
+            const py = playerY - 20 * ps + Math.random() * 20 * ps;
+            introCtx.fillRect(px, py, 4 * ps, 4 * ps);
+        }
+    }
+    
+    requestAnimationFrame(drawIntroAnimation);
+}
+
+// ===== TRANSITION TIMING (max 0.5s) =====
+const MAX_TRANSITION_MS = 500;
+
 // Game variables
 let canvas;
 let ctx;
@@ -3414,6 +3558,9 @@ function gameLoop() {
 window.addEventListener('load', function() {
     try {
         console.log('=== GAME INITIALIZATION ===');
+        
+        // Initialize intro screen first
+        initIntroScreen();
         
         // Get canvas element from HTML
         canvas = document.getElementById('gameCanvas');
