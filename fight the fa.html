@@ -309,8 +309,8 @@
             .ui-panel,
             .qol-panel,
             .testing-panel {
-                font-size: 11px;
-                padding: 8px;
+                font-size: clamp(10px, 2.6vw, 14px);
+                padding: clamp(6px, 1.8vw, 10px);
                 border-radius: 6px;
                 max-width: calc(100vw - (2 * var(--mobileSideWidth) + 20px));
             }
@@ -328,7 +328,36 @@
             }
 
             .testing-panel {
+                display: none;
+            }
+
+            #testingOpenBtn {
                 display: block;
+                position: fixed;
+                top: 8px;
+                right: 8px;
+                z-index: 10002;
+                padding: 10px 12px;
+                font-family: inherit;
+                font-weight: bold;
+                font-size: 12px;
+                background: rgba(0, 0, 0, 0.85);
+                color: #FF6B6B;
+                border: 2px solid #444;
+                border-radius: 10px;
+                touch-action: none;
+            }
+
+            body.testing-open #testingPanel {
+                display: block;
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: min(380px, calc(100vw - 20px));
+                max-height: min(70vh, 520px);
+                overflow-y: auto;
+                z-index: 10003;
             }
         }
 
@@ -394,6 +423,14 @@
 
         body.bow-equipped #aimJoystickContainer {
             display: flex;
+        }
+
+        body.bow-equipped #mobileAttack {
+            display: none;
+        }
+
+        #testingOpenBtn {
+            display: none;
         }
     </style>
 </head>
@@ -483,6 +520,8 @@
             </div>
         </div>
     </div>
+
+    <button id="testingOpenBtn" type="button" onclick="toggleTestingPanelPopup()">TEST</button>
     
     <script src="fight-the-faheem.js"></script>
 </body>

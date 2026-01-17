@@ -78,6 +78,12 @@ function updateBowEquippedUI() {
     body.classList.toggle('bow-equipped', bowEquipped);
 }
 
+function toggleTestingPanelPopup() {
+    const body = document.body;
+    if (!body) return;
+    body.classList.toggle('testing-open');
+}
+
 // Day/Night cycle function
 function updateDayNightCycle() {
     // Don't update day/night cycle after night 10 (game ends after boss fight)
@@ -1863,11 +1869,13 @@ window.addEventListener('load', function() {
 
          const handleDown = (e) => {
              e.preventDefault();
+             e.stopPropagation();
              onDown();
          };
 
          const handleUp = (e) => {
              e.preventDefault();
+             e.stopPropagation();
              onUp();
          };
 
@@ -1902,6 +1910,7 @@ window.addEventListener('load', function() {
      if (mobileEat) {
          mobileEat.addEventListener('pointerdown', (e) => {
              e.preventDefault();
+             e.stopPropagation();
              eatBread();
          });
      }
@@ -1910,6 +1919,7 @@ window.addEventListener('load', function() {
      if (mobileInv) {
          mobileInv.addEventListener('pointerdown', (e) => {
              e.preventDefault();
+             e.stopPropagation();
              toggleInventory();
          });
      }
@@ -2116,77 +2126,39 @@ window.addEventListener('load', function() {
     const joystickHandle = document.getElementById('joystickHandle');
     if (!joystickHandle) return;
     const joystickBase = joystickHandle.parentElement;
+    let joystickPointerId = null;
     
     const handleStart = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (e.touches) {
-            // For touch, track the specific touch ID
-            const touch = e.touches[0];
-            joystickTouchId = touch.identifier;
-            joystickActive = true;
-            // Dynamic joystick: center starts where finger is placed
-            setJoystickBaseCenter(joystickBase, touch.clientX, touch.clientY);
-        } else {
-            // Mouse
-            joystickActive = true;
-            setJoystickBaseCenter(joystickBase, e.clientX, e.clientY);
-        }
+        if (joystickPointerId !== null) return;
+        joystickPointerId = e.pointerId;
+        joystickActive = true;
+        setJoystickBaseCenter(joystickBase, e.clientX, e.clientY);
+        resetJoystick(joystickHandle);
+        joystickBase.setPointerCapture(joystickPointerId);
     };
     
     const handleMove = (e) => {
         if (!joystickActive) return;
-        
-        if (e.touches) {
-            // Find the touch that started on joystick
-            let joystickTouch = null;
-            for (let i = 0; i < e.touches.length; i++) {
-                if (e.touches[i].identifier === joystickTouchId) {
-                    joystickTouch = e.touches[i];
-                    break;
-                }
-            }
-            if (joystickTouch) {
-                e.preventDefault();
-                updateJoystickPositionDynamic(joystickHandle, joystickTouch.clientX, joystickTouch.clientY);
-            }
-        } else {
-            e.preventDefault();
-            updateJoystickPositionDynamic(joystickHandle, e.clientX, e.clientY);
-        }
+        if (e.pointerId !== joystickPointerId) return;
+        e.preventDefault();
+        updateJoystickPositionDynamic(joystickHandle, e.clientX, e.clientY);
     };
     
     const handleEnd = (e) => {
-        if (e.changedTouches) {
-            // Only reset if the joystick touch ended
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === joystickTouchId) {
-                    joystickActive = false;
-                    joystickTouchId = null;
-                    resetJoystick(joystickHandle);
-                    resetJoystickBase(joystickBase);
-                    break;
-                }
-            }
-        } else {
-            // Mouse
-            if (!joystickActive) return;
-            joystickActive = false;
-            resetJoystick(joystickHandle);
-            resetJoystickBase(joystickBase);
-        }
+        if (e.pointerId !== joystickPointerId) return;
+        e.preventDefault();
+        joystickActive = false;
+        joystickPointerId = null;
+        resetJoystick(joystickHandle);
+        resetJoystickBase(joystickBase);
     };
-    
-    // Mouse events
-    joystickBase.addEventListener('mousedown', handleStart);
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    
-    // Touch events - use joystick base for better hit area
-    joystickBase.addEventListener('touchstart', handleStart, { passive: false });
-    document.addEventListener('touchmove', handleMove, { passive: false });
-    document.addEventListener('touchend', handleEnd, { passive: false });
-    document.addEventListener('touchcancel', handleEnd, { passive: false });
+
+    joystickBase.addEventListener('pointerdown', handleStart);
+    joystickBase.addEventListener('pointermove', handleMove);
+    joystickBase.addEventListener('pointerup', handleEnd);
+    joystickBase.addEventListener('pointercancel', handleEnd);
 });
 
 // Aim joystick state (right side)
@@ -2194,11 +2166,13 @@ let aimJoystickTouchId = null;
 let aimJoystickActive = false;
 let aimJoystickVector = { x: 0, y: 0 };
 let aimJoystickCenter = { x: 0, y: 0 };
+let aimJoystickLastVector = { x: 1, y: 0 };
 
 window.addEventListener('load', function() {
     const aimHandle = document.getElementById('aimJoystickHandle');
     if (!aimHandle) return;
     const aimBase = aimHandle.parentElement;
+    let aimPointerId = null;
 
     const canUseBow = () => {
         const currentWeapon = weapons[currentAxeIndex];
@@ -2249,6 +2223,7 @@ window.addEventListener('load', function() {
         const normalizedX = deltaX / maxDistance;
         const normalizedY = deltaY / maxDistance;
         aimJoystickVector = { x: normalizedX, y: normalizedY };
+        aimJoystickLastVector = { x: normalizedX, y: normalizedY };
 
         if (Math.abs(normalizedX) > 0.02 || Math.abs(normalizedY) > 0.02) {
             mouseX = player.x + normalizedX * 100;
@@ -2273,14 +2248,25 @@ window.addEventListener('load', function() {
         if (player.bowCharging) {
             player.bowCharging = false;
 
-            const dx = aimJoystickVector.x;
-            const dy = aimJoystickVector.y;
+            const v = (Math.abs(aimJoystickVector.x) > 0.02 || Math.abs(aimJoystickVector.y) > 0.02)
+                ? aimJoystickVector
+                : aimJoystickLastVector;
+
+            const dx = v.x;
+            const dy = v.y;
             const len = Math.sqrt(dx * dx + dy * dy);
             const chargeRatio = player.maxBowCharge ? Math.min(1, (player.bowCharge || 0) / player.maxBowCharge) : 0;
 
-            // Require a minimum aim vector and charge so accidental taps don't fire
-            if (len > 0.15 && chargeRatio > 0.05) {
+            if (len > 0.05) {
                 const angle = Math.atan2(dy, dx);
+                const speed = 10 + (10 * chargeRatio);
+                shootArrow(angle, speed);
+            } else {
+                // Fallback: fire in facing direction
+                const angle = player.facing === 'up' ? -Math.PI / 2
+                    : player.facing === 'down' ? Math.PI / 2
+                    : player.facing === 'left' ? Math.PI
+                    : 0;
                 const speed = 10 + (10 * chargeRatio);
                 shootArrow(angle, speed);
             }
@@ -2293,73 +2279,37 @@ window.addEventListener('load', function() {
         if (!canUseBow()) return;
         e.preventDefault();
         e.stopPropagation();
-
-        if (e.touches) {
-            const touch = e.touches[0];
-            aimJoystickTouchId = touch.identifier;
-            aimJoystickActive = true;
-            setAimBaseCenter(touch.clientX, touch.clientY);
-            resetAimJoystick();
-            startBowCharge();
-        } else {
-            aimJoystickActive = true;
-            setAimBaseCenter(e.clientX, e.clientY);
-            resetAimJoystick();
-            startBowCharge();
-        }
+        if (aimPointerId !== null) return;
+        aimPointerId = e.pointerId;
+        aimJoystickActive = true;
+        setAimBaseCenter(e.clientX, e.clientY);
+        resetAimJoystick();
+        startBowCharge();
+        aimBase.setPointerCapture(aimPointerId);
     };
 
     const handleAimMove = (e) => {
         if (!aimJoystickActive) return;
-
-        if (e.touches) {
-            let aimTouch = null;
-            for (let i = 0; i < e.touches.length; i++) {
-                if (e.touches[i].identifier === aimJoystickTouchId) {
-                    aimTouch = e.touches[i];
-                    break;
-                }
-            }
-            if (!aimTouch) return;
-            e.preventDefault();
-            updateAimJoystickDynamic(aimTouch.clientX, aimTouch.clientY);
-        } else {
-            e.preventDefault();
-            updateAimJoystickDynamic(e.clientX, e.clientY);
-        }
+        if (e.pointerId !== aimPointerId) return;
+        e.preventDefault();
+        updateAimJoystickDynamic(e.clientX, e.clientY);
     };
 
     const handleAimEnd = (e) => {
-        if (e.changedTouches) {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === aimJoystickTouchId) {
-                    aimJoystickActive = false;
-                    aimJoystickTouchId = null;
-                    resetAimJoystick();
-                    resetAimBase();
-                    releaseBowCharge();
-                    break;
-                }
-            }
-        } else {
-            if (!aimJoystickActive) return;
-            aimJoystickActive = false;
-            resetAimJoystick();
-            resetAimBase();
-            releaseBowCharge();
-        }
+        if (e.pointerId !== aimPointerId) return;
+        e.preventDefault();
+        if (!aimJoystickActive) return;
+        aimJoystickActive = false;
+        aimPointerId = null;
+        releaseBowCharge();
+        resetAimJoystick();
+        resetAimBase();
     };
 
-    // Mouse
-    aimBase.addEventListener('mousedown', handleAimStart);
-    document.addEventListener('mousemove', handleAimMove);
-    document.addEventListener('mouseup', handleAimEnd);
-
-    // Touch
-    aimBase.addEventListener('touchstart', handleAimStart, { passive: false });
-    document.addEventListener('touchmove', handleAimMove, { passive: false });
-    document.addEventListener('touchend', handleAimEnd, { passive: false });
-    document.addEventListener('touchcancel', handleAimEnd, { passive: false });
+    aimBase.addEventListener('pointerdown', handleAimStart);
+    aimBase.addEventListener('pointermove', handleAimMove);
+    aimBase.addEventListener('pointerup', handleAimEnd);
+    aimBase.addEventListener('pointercancel', handleAimEnd);
 });
 
 // Joystick functionality
