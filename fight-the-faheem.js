@@ -164,13 +164,16 @@ function drawIntroAnimation() {
     introCtx.fillStyle = sky;
     introCtx.fillRect(0, 0, w, h);
 
+    // Cover the whole screen (no letterboxing). This may crop a bit on some aspect ratios.
     const sx = w / worldW;
     const sy = h / worldH;
-    const s = Math.min(sx, sy);
+    const s = Math.max(sx, sy);
+    const viewW = w / s;
+    const viewH = h / s;
     introCtx.save();
-    introCtx.translate(w / 2, h / 2);
+    // Center-crop the world into the viewport
     introCtx.scale(s, s);
-    introCtx.translate(-worldW / 2, -worldH / 2);
+    introCtx.translate((worldW - viewW) / 2, (worldH - viewH) / 2);
 
     introCtx.fillStyle = '#6b8e6b';
     introCtx.beginPath();
