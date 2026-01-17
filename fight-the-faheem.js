@@ -18,6 +18,7 @@ let introHealth = 100;
 let introMaxHealth = 100;
 let introWolves = [];
 let introUpgradeCooldown = 0;
+let introUpgradeCount = 0;
 
 function initIntroScreen() {
     introCanvas = document.getElementById('introCanvas');
@@ -50,6 +51,7 @@ function initIntroScreen() {
         introArmorLevel = 0;
         introHealth = introMaxHealth;
         introUpgradeCooldown = 0;
+        introUpgradeCount = 0;
 
         const baseY = 240;
         const spacing = 140;
@@ -188,7 +190,7 @@ function drawIntroAnimation() {
             } else {
                 introUpgradeCooldown = 12;
 
-                if (introAxeLevel >= introMaxAxeLevel || introArmorLevel >= introMaxArmorLevel) {
+                if ((introAxeLevel >= introMaxAxeLevel || introArmorLevel >= introMaxArmorLevel) && introUpgradeCount > 0) {
                     introPlayer.state = 'wolves';
                     introWolves = [];
                     for (let i = 0; i < 4; i++) {
@@ -205,11 +207,11 @@ function drawIntroAnimation() {
                     // Random upgrades, but weapon progression is axes only.
                     const pick = Math.random() < 0.5 ? 'axe' : 'armor';
                     if (pick === 'axe') {
-                        if (introAxeLevel < introMaxAxeLevel) introAxeLevel++;
-                        else if (introArmorLevel < introMaxArmorLevel) introArmorLevel++;
+                        if (introAxeLevel < introMaxAxeLevel) { introAxeLevel++; introUpgradeCount++; }
+                        else if (introArmorLevel < introMaxArmorLevel) { introArmorLevel++; introUpgradeCount++; }
                     } else {
-                        if (introArmorLevel < introMaxArmorLevel) introArmorLevel++;
-                        else if (introAxeLevel < introMaxAxeLevel) introAxeLevel++;
+                        if (introArmorLevel < introMaxArmorLevel) { introArmorLevel++; introUpgradeCount++; }
+                        else if (introAxeLevel < introMaxAxeLevel) { introAxeLevel++; introUpgradeCount++; }
                     }
                 }
             }
@@ -238,7 +240,10 @@ function drawIntroAnimation() {
                 introHealth = introMaxHealth;
                 introAxeLevel = 0;
                 introArmorLevel = 0;
+                introUpgradeCount = 0;
+                introUpgradeCooldown = 0;
                 introWolves = [];
+                introWoodParticles = [];
                 for (const t of introTrees) {
                     t.alive = true;
                     t.health = t.maxHealth;
@@ -247,7 +252,11 @@ function drawIntroAnimation() {
                 introPlayer.x = introTrees[0].x - 50;
                 introPlayer.y = introTrees[0].y + 10;
                 introPlayer.facing = 'right';
+                introPlayer.cutting = false;
+                introPlayer.cutTimer = 0;
                 introPlayer.state = 'walk';
+                introCamX = introPlayer.x;
+                introCamY = introPlayer.y;
             }
         }
 
