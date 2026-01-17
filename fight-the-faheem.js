@@ -154,8 +154,9 @@ function drawIntroAnimation() {
         introCamY += (desiredCamY - introCamY) * 0.06;
     }
 
-    const camLeft = introCamX - worldW / 2;
-    const camTop = introCamY - worldH / 2;
+    // Camera will be clamped after we compute the visible viewport size (viewW/viewH)
+    let camLeft = introCamX - worldW / 2;
+    let camTop = introCamY - worldH / 2;
 
     const sky = introCtx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, '#87CEEB');
@@ -173,7 +174,13 @@ function drawIntroAnimation() {
     introCtx.save();
     // Center-crop the world into the viewport
     introCtx.scale(s, s);
-    introCtx.translate((worldW - viewW) / 2, (worldH - viewH) / 2);
+    introCtx.translate(-(worldW - viewW) / 2, -(worldH - viewH) / 2);
+
+    // Clamp camera to the visible viewport so we never pan into empty space
+    camLeft = introCamX - viewW / 2;
+    camTop = introCamY - viewH / 2;
+    camLeft = Math.max(0, Math.min(worldW - viewW, camLeft));
+    camTop = Math.max(0, Math.min(worldH - viewH, camTop));
 
     introCtx.fillStyle = '#6b8e6b';
     introCtx.beginPath();
