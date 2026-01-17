@@ -11,7 +11,8 @@ let introWoodParticles = [];
 let introShop = null;
 let introAxeLevel = 0;
 let introArmorLevel = 0;
-let introMaxAxeLevel = 6;
+let introAxeTiers = ['Wooden Axe', 'Stone Axe', 'Iron Axe', 'Gold Axe', 'Diamond Axe'];
+let introMaxAxeLevel = 4;
 let introMaxArmorLevel = 4;
 let introHealth = 100;
 let introMaxHealth = 100;
@@ -187,7 +188,7 @@ function drawIntroAnimation() {
             } else {
                 introUpgradeCooldown = 12;
 
-                if (introAxeLevel >= introMaxAxeLevel && introArmorLevel >= introMaxArmorLevel) {
+                if (introAxeLevel >= introMaxAxeLevel || introArmorLevel >= introMaxArmorLevel) {
                     introPlayer.state = 'wolves';
                     introWolves = [];
                     for (let i = 0; i < 4; i++) {
@@ -201,6 +202,7 @@ function drawIntroAnimation() {
                         });
                     }
                 } else {
+                    // Random upgrades, but weapon progression is axes only.
                     const pick = Math.random() < 0.5 ? 'axe' : 'armor';
                     if (pick === 'axe') {
                         if (introAxeLevel < introMaxAxeLevel) introAxeLevel++;
@@ -412,7 +414,8 @@ function drawIntroAnimation() {
     introCtx.fillRect(10, 10, 190, 54);
     introCtx.fillStyle = '#FFD700';
     introCtx.font = '12px monospace';
-    introCtx.fillText(`AXE: ${introAxeLevel}/${introMaxAxeLevel}`, 18, 30);
+    const axeName = introAxeTiers[introAxeLevel] || 'Axe';
+    introCtx.fillText(`AXE: ${axeName}`, 18, 30);
     introCtx.fillText(`ARM: ${introArmorLevel}/${introMaxArmorLevel}`, 18, 46);
 
     if (introPlayer && introPlayer.state === 'wolves') {
