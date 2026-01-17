@@ -9,9 +9,13 @@ let introCamX = 0;
 let introCamY = 0;
 let introWoodParticles = [];
 let introShop = null;
+let introShopPositions = [];
 let introAxeLevel = 0;
 let introArmorLevel = 0;
 let introAxeTiers = ['Wooden Axe', 'Stone Axe', 'Iron Axe', 'Gold Axe', 'Diamond Axe'];
+let introArmorTiers = ['None', 'Leather', 'Iron', 'Gold', 'Diamond'];
+let introAxeColors = ['#8B4513', '#808080', '#4169E1', '#FFD700', '#00CED1'];
+let introArmorColors = ['transparent', '#8B4513', '#708090', '#FFD700', '#00CED1'];
 let introMaxAxeLevel = 4;
 let introMaxArmorLevel = 4;
 let introHealth = 100;
@@ -19,6 +23,10 @@ let introMaxHealth = 100;
 let introWolves = [];
 let introUpgradeCooldown = 0;
 let introUpgradeCount = 0;
+let introCurrentRow = 0;
+let introTreesPerRow = 3;
+let introShowUpgradeText = '';
+let introUpgradeTextTimer = 0;
 
 function initIntroScreen() {
     introCanvas = document.getElementById('introCanvas');
@@ -45,6 +53,8 @@ function initIntroScreen() {
         introTrees = [];
         introWoodParticles = [];
         introWolves = [];
+        introShop = null;
+        introShopPositions = [];
         introTargetTreeIndex = 0;
         introAnimFrame = 0;
         introAxeLevel = 0;
@@ -52,33 +62,46 @@ function initIntroScreen() {
         introHealth = introMaxHealth;
         introUpgradeCooldown = 0;
         introUpgradeCount = 0;
+        introCurrentRow = 0;
+        introShowUpgradeText = '';
+        introUpgradeTextTimer = 0;
 
         const baseY = 240;
-        const spacing = 140;
-        for (let i = 0; i < 6; i++) {
-            const x = 80 + i * spacing;
-            const type = (i % 3 === 0) ? 'autumn' : (i % 3 === 1) ? 'dark' : 'normal';
-            const t = {
-                x,
-                y: baseY,
-                type,
-                width: 30,
-                height: 40,
-                maxHealth: 10,
-                health: 10,
-                alive: true,
-                trunkColor: type === 'dark' ? '#654321' : '#8B4513',
-                leavesColor: type === 'autumn' ? '#FF8C00' : (type === 'dark' ? '#006400' : '#228B22')
+        const spacing = 100;
+        // Create multiple rows of trees (3 trees per row, 4 rows total)
+        const totalRows = 4;
+        for (let row = 0; row < totalRows; row++) {
+            for (let col = 0; col < introTreesPerRow; col++) {
+                const i = row * introTreesPerRow + col;
+                const x = 80 + col * spacing + row * (introTreesPerRow * spacing + 150);
+                const type = (col % 3 === 0) ? 'autumn' : (col % 3 === 1) ? 'dark' : 'normal';
+                const t = {
+                    x,
+                    y: baseY,
+                    type,
+                    row: row,
+                    width: 30,
+                    height: 40,
+                    maxHealth: 10,
+                    health: 10,
+                    alive: true,
+                    trunkColor: type === 'dark' ? '#654321' : '#8B4513',
+                    leavesColor: type === 'autumn' ? '#FF8C00' : (type === 'dark' ? '#006400' : '#228B22')
+                };
+                introTrees.push(t);
+            }
+            // Add shop after each row
+            const shopX = 80 + (introTreesPerRow - 1) * spacing + row * (introTreesPerRow * spacing + 150) + 120;
+            introShopPositions[row] = {
+                x: shopX,
+                y: baseY + 10,
+                w: 70,
+                h: 60,
+                row: row
             };
-            introTrees.push(t);
         }
 
-        introShop = {
-            x: introTrees[introTrees.length - 1].x + 170,
-            y: baseY + 10,
-            w: 70,
-            h: 60
-        };
+        introShop = introShopPositions[0] || null;
 
         introPlayer = {
             x: introTrees[0].x - 50,
@@ -118,13 +141,29 @@ function drawIntroAnimation() {
 
     introAnimFrame++;
 
-    const worldW = 900;
+    const worldW = 2000; // Increased to fit 4 rows of trees + shops
     const worldH = 320;
     const groundY = 260;
+
+    // Update upgrade text timer
+    if (introUpgradeTextTimer > 0) {
+        introUpgradeTextTimer--;
+    }
 
     if (introPlayer && introTrees.length) {
         const targetTree = introTrees[introTargetTreeIndex];
         const targetX = targetTree ? (targetTree.x - 45) : introPlayer.x;
+        
+        // Get current row's shop
+        const currentShop = introShopPositions[introCurrentRow] || introShop;
+        if (currentShop && introShop) {
+            introShop.x = currentShop.x;
+            introShop.y = currentShop.y;
+            introShop.w = currentShop.w;
+            introShop.h = currentShop.h;
+        } else if (currentShop && !introShop) {
+            introShop = { x: currentShop.x, y: currentShop.y, w: currentShop.w, h: currentShop.h, row: currentShop.row };
+        }
 
         if (introPlayer.state === 'walk') {
             introPlayer.cutting = false;
@@ -143,9 +182,9 @@ function drawIntroAnimation() {
             if (introPlayer.cutTimer > 0) {
                 introPlayer.cutTimer--;
             } else {
-                introPlayer.cutTimer = 30;
+                introPlayer.cutTimer = 30 - (introAxeLevel * 4); // Faster chopping with better axe
                 if (targetTree && targetTree.alive) {
-                    const dmg = 2 + Math.floor(introAxeLevel / 2);
+                    const dmg = 2 + introAxeLevel; // More damage with better axe
                     targetTree.health -= dmg;
                     for (let i = 0; i < 6; i++) {
                         introWoodParticles.push({
@@ -160,7 +199,14 @@ function drawIntroAnimation() {
                     if (targetTree.health <= 0) {
                         targetTree.alive = false;
                         targetTree.health = 0;
-                        if (introTargetTreeIndex >= introTrees.length - 1) {
+                        
+                        // Check if we finished a row (every 3 trees)
+                        const treeIndexInRow = introTargetTreeIndex % introTreesPerRow;
+                        if (treeIndexInRow === introTreesPerRow - 1) {
+                            // Finished a row - go to shop
+                            introPlayer.state = 'walkShop';
+                        } else if (introTargetTreeIndex >= introTrees.length - 1) {
+                            // All trees done
                             introPlayer.state = 'walkShop';
                         } else {
                             introTargetTreeIndex++;
@@ -179,7 +225,7 @@ function drawIntroAnimation() {
                 introPlayer.x += Math.sign(dx) * introPlayer.speed;
             } else {
                 introPlayer.state = 'shop';
-                introUpgradeCooldown = 10;
+                introUpgradeCooldown = 60; // Wait before showing upgrade
             }
         } else if (introPlayer.state === 'shop') {
             introPlayer.cutting = false;
@@ -188,35 +234,68 @@ function drawIntroAnimation() {
             if (introUpgradeCooldown > 0) {
                 introUpgradeCooldown--;
             } else {
-                introUpgradeCooldown = 12;
-
-                if ((introAxeLevel >= introMaxAxeLevel || introArmorLevel >= introMaxArmorLevel) && introUpgradeCount > 0) {
+                // Check if max level reached - trigger wolf punishment
+                if (introAxeLevel >= introMaxAxeLevel || introArmorLevel >= introMaxArmorLevel) {
                     introPlayer.state = 'wolves';
                     introWolves = [];
-                    for (let i = 0; i < 4; i++) {
+                    // Spawn wolves based on upgrade level
+                    const wolfCount = 3 + introUpgradeCount;
+                    for (let i = 0; i < wolfCount; i++) {
                         introWolves.push({
-                            x: introPlayer.x + 160 + i * 30,
-                            y: introPlayer.y,
+                            x: introPlayer.x + 160 + i * 25,
+                            y: introPlayer.y + (Math.random() - 0.5) * 40,
                             vx: 0,
                             vy: 0,
                             speed: 1.4 + Math.random() * 0.4,
                             alive: true
                         });
                     }
+                    introShowUpgradeText = 'MAX LEVEL! WOLVES ATTACK!';
+                    introUpgradeTextTimer = 120;
                 } else {
-                    // Random upgrades, but weapon progression is axes only.
-                    const pick = Math.random() < 0.5 ? 'axe' : 'armor';
-                    if (pick === 'axe') {
-                        if (introAxeLevel < introMaxAxeLevel) { introAxeLevel++; introUpgradeCount++; }
-                        else if (introArmorLevel < introMaxArmorLevel) { introArmorLevel++; introUpgradeCount++; }
+                    // Give ONE random upgrade (axe OR armor, never both)
+                    const canUpgradeAxe = introAxeLevel < introMaxAxeLevel;
+                    const canUpgradeArmor = introArmorLevel < introMaxArmorLevel;
+                    
+                    if (canUpgradeAxe && canUpgradeArmor) {
+                        // Random choice
+                        if (Math.random() < 0.5) {
+                            introAxeLevel++;
+                            introShowUpgradeText = 'UPGRADED: ' + introAxeTiers[introAxeLevel];
+                        } else {
+                            introArmorLevel++;
+                            introShowUpgradeText = 'UPGRADED: ' + introArmorTiers[introArmorLevel] + ' Armor';
+                        }
+                    } else if (canUpgradeAxe) {
+                        introAxeLevel++;
+                        introShowUpgradeText = 'UPGRADED: ' + introAxeTiers[introAxeLevel];
+                    } else if (canUpgradeArmor) {
+                        introArmorLevel++;
+                        introShowUpgradeText = 'UPGRADED: ' + introArmorTiers[introArmorLevel] + ' Armor';
+                    }
+                    
+                    introUpgradeCount++;
+                    introUpgradeTextTimer = 90;
+                    
+                    // Move to next row
+                    introCurrentRow++;
+                    if (introTargetTreeIndex < introTrees.length - 1) {
+                        introTargetTreeIndex++;
+                        introPlayer.state = 'walk';
                     } else {
-                        if (introArmorLevel < introMaxArmorLevel) { introArmorLevel++; introUpgradeCount++; }
-                        else if (introAxeLevel < introMaxAxeLevel) { introAxeLevel++; introUpgradeCount++; }
+                        // If we've done all trees but not max level, reset trees
+                        for (const t of introTrees) {
+                            t.alive = true;
+                            t.health = t.maxHealth;
+                        }
+                        introTargetTreeIndex = 0;
+                        introCurrentRow = 0;
+                        introPlayer.state = 'walk';
                     }
                 }
             }
         } else if (introPlayer.state === 'wolves') {
-            // Wolves chase and kill the player
+            // Wolves chase and kill the player - Wolf Punishment Event
             const armorMitigation = 0.15 * introArmorLevel;
             const dmgPerHit = Math.max(0.6, 2.0 - armorMitigation);
 
@@ -236,14 +315,18 @@ function drawIntroAnimation() {
             }
 
             if (introHealth <= 0) {
-                // Reset loop: gear back to 0, trees back alive, health restored
+                // RESET EVERYTHING - Wolf Punishment complete
+                // All armour removed, axe reset to starter, all upgrades lost
                 introHealth = introMaxHealth;
-                introAxeLevel = 0;
-                introArmorLevel = 0;
+                introAxeLevel = 0;  // Reset to starter axe
+                introArmorLevel = 0; // Remove all armor
                 introUpgradeCount = 0;
                 introUpgradeCooldown = 0;
+                introCurrentRow = 0;
                 introWolves = [];
                 introWoodParticles = [];
+                
+                // Reset all trees
                 for (const t of introTrees) {
                     t.alive = true;
                     t.health = t.maxHealth;
@@ -257,6 +340,9 @@ function drawIntroAnimation() {
                 introPlayer.state = 'walk';
                 introCamX = introPlayer.x;
                 introCamY = introPlayer.y;
+                
+                introShowUpgradeText = 'RESET! Starting over...';
+                introUpgradeTextTimer = 90;
             }
         }
 
@@ -284,15 +370,16 @@ function drawIntroAnimation() {
     const viewW = w / s;
     const viewH = h / s;
     introCtx.save();
-    // Center-crop the world into the viewport
     introCtx.scale(s, s);
-    introCtx.translate(-(worldW - viewW) / 2, -(worldH - viewH) / 2);
 
     // Clamp camera to the visible viewport so we never pan into empty space
     camLeft = introCamX - viewW / 2;
     camTop = introCamY - viewH / 2;
     camLeft = Math.max(0, Math.min(worldW - viewW, camLeft));
     camTop = Math.max(0, Math.min(worldH - viewH, camTop));
+
+    // Apply camera translation (world-space) so the view follows the player
+    introCtx.translate(-camLeft, -camTop);
 
     introCtx.fillStyle = '#6b8e6b';
     introCtx.beginPath();
@@ -312,8 +399,9 @@ function drawIntroAnimation() {
     introCtx.fillRect(0, groundY, worldW, worldH - groundY);
 
     introCtx.save();
-    introCtx.translate(-camLeft, -camTop);
+    introCtx.translate(0, 0);
 
+    // Draw shop
     if (introShop) {
         introCtx.fillStyle = '#3b2a1a';
         introCtx.fillRect(introShop.x - introShop.w/2, introShop.y - introShop.h/2, introShop.w, introShop.h);
@@ -321,6 +409,9 @@ function drawIntroAnimation() {
         introCtx.fillRect(introShop.x - introShop.w/2, introShop.y - introShop.h/2, introShop.w, 10);
         introCtx.fillStyle = '#FFD700';
         introCtx.fillRect(introShop.x - 20, introShop.y - 10, 40, 8);
+        introCtx.fillStyle = '#FFF';
+        introCtx.font = '8px monospace';
+        introCtx.fillText('SHOP', introShop.x - 14, introShop.y - introShop.h/2 - 5);
     }
 
     for (const t of introTrees) {
@@ -350,8 +441,24 @@ function drawIntroAnimation() {
     if (introPlayer) {
         const p = introPlayer;
 
+        // Draw player body
         introCtx.fillStyle = p.color;
         introCtx.fillRect(p.x - p.width/2, p.y - p.height/2, p.width, p.height);
+
+        // Draw armor as a worn overlay (on top of body)
+        if (introArmorLevel > 0) {
+            const armorColor = introArmorColors[introArmorLevel];
+            // Chestplate
+            introCtx.fillStyle = armorColor;
+            introCtx.fillRect(p.x - p.width/2, p.y - p.height/2 + 6, p.width, p.height - 10);
+            // Shoulder pads
+            introCtx.fillRect(p.x - p.width/2 - 2, p.y - p.height/2 + 6, 4, 6);
+            introCtx.fillRect(p.x + p.width/2 - 2, p.y - p.height/2 + 6, 4, 6);
+            // Small outline for readability
+            introCtx.strokeStyle = 'rgba(0,0,0,0.35)';
+            introCtx.lineWidth = 1;
+            introCtx.strokeRect(p.x - p.width/2, p.y - p.height/2 + 6, p.width, p.height - 10);
+        }
 
         introCtx.fillStyle = '#FDBCB4';
         introCtx.fillRect(p.x - p.width/2 - 5, p.y - p.height/2 + 5, 5, 15);
@@ -379,6 +486,7 @@ function drawIntroAnimation() {
         introCtx.fillStyle = '#8B4513';
         introCtx.fillRect(p.x - 10, p.y - p.height/2 - 15, 20, 5);
 
+        // Draw axe with visual upgrade feedback
         if (p.cutting) {
             introCtx.save();
             introCtx.translate(p.x, p.y);
@@ -388,6 +496,7 @@ function drawIntroAnimation() {
                 introCtx.rotate(-Math.PI / 3);
             }
 
+            // Axe handle
             introCtx.fillStyle = '#8B4513';
             introCtx.fillRect(10, -2, 2, 2);
             introCtx.fillRect(12, 0, 2, 2);
@@ -396,12 +505,21 @@ function drawIntroAnimation() {
             introCtx.fillRect(18, 6, 2, 2);
             introCtx.fillRect(20, 8, 2, 2);
 
-            introCtx.fillStyle = '#C0C0C0';
-            introCtx.fillRect(18, -8, 8, 8);
+            // Axe head - color based on level
+            introCtx.fillStyle = introAxeColors[introAxeLevel];
+            const axeSize = 8 + introAxeLevel; // Slightly bigger axe head with upgrades
+            introCtx.fillRect(18, -axeSize, axeSize, axeSize);
             introCtx.fillStyle = '#000000';
-            introCtx.fillRect(26, -6, 2, 6);
-            introCtx.fillRect(20, -10, 4, 2);
+            introCtx.fillRect(18 + axeSize, -axeSize + 2, 2, axeSize - 2);
+            introCtx.fillRect(20, -axeSize - 2, 4, 2);
             introCtx.restore();
+        } else {
+            // Idle axe - show current axe level color
+            introCtx.fillStyle = '#8B4513';
+            introCtx.fillRect(p.x + 10, p.y - 2, 15, 3);
+            introCtx.fillStyle = introAxeColors[introAxeLevel];
+            const axeSize = 8 + introAxeLevel;
+            introCtx.fillRect(p.x + 16, p.y - 6, axeSize, axeSize);
         }
     }
 
@@ -419,20 +537,51 @@ function drawIntroAnimation() {
     introCtx.restore();
 
     // Intro HUD in screen-space (doesn't drift with camera)
-    introCtx.fillStyle = 'rgba(0,0,0,0.35)';
-    introCtx.fillRect(10, 10, 190, 54);
+    introCtx.fillStyle = 'rgba(0,0,0,0.5)';
+    introCtx.fillRect(10, 10, 200, 80);
+    
+    // Axe display with color indicator
+    const axeName = introAxeTiers[introAxeLevel] || 'Wooden Axe';
+    introCtx.fillStyle = introAxeColors[introAxeLevel];
+    introCtx.fillRect(18, 22, 12, 12);
     introCtx.fillStyle = '#FFD700';
     introCtx.font = '12px monospace';
-    const axeName = introAxeTiers[introAxeLevel] || 'Axe';
-    introCtx.fillText(`AXE: ${axeName}`, 18, 30);
-    introCtx.fillText(`ARM: ${introArmorLevel}/${introMaxArmorLevel}`, 18, 46);
+    introCtx.fillText(`AXE: ${axeName}`, 35, 32);
+    
+    // Armor display with color indicator
+    const armorName = introArmorTiers[introArmorLevel] || 'None';
+    if (introArmorLevel > 0) {
+        introCtx.fillStyle = introArmorColors[introArmorLevel];
+        introCtx.fillRect(18, 42, 12, 12);
+    } else {
+        introCtx.strokeStyle = '#666';
+        introCtx.strokeRect(18, 42, 12, 12);
+    }
+    introCtx.fillStyle = '#FFD700';
+    introCtx.fillText(`ARM: ${armorName}`, 35, 52);
+    
+    // Row progress
+    introCtx.fillStyle = '#AAA';
+    introCtx.font = '10px monospace';
+    introCtx.fillText(`Row: ${introCurrentRow + 1} | Upgrades: ${introUpgradeCount}`, 18, 70);
 
+    // Health bar during wolf attack
     if (introPlayer && introPlayer.state === 'wolves') {
         const ratio = Math.max(0, Math.min(1, introHealth / introMaxHealth));
         introCtx.fillStyle = '#FF0000';
-        introCtx.fillRect(18, 56, 160, 6);
+        introCtx.fillRect(18, 76, 160, 8);
         introCtx.fillStyle = '#00FF00';
-        introCtx.fillRect(18, 56, 160 * ratio, 6);
+        introCtx.fillRect(18, 76, 160 * ratio, 8);
+    }
+    
+    // Upgrade notification text
+    if (introUpgradeTextTimer > 0 && introShowUpgradeText) {
+        const alpha = Math.min(1, introUpgradeTextTimer / 30);
+        introCtx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+        introCtx.font = 'bold 16px monospace';
+        introCtx.textAlign = 'center';
+        introCtx.fillText(introShowUpgradeText, introCanvas.width / 2, 120);
+        introCtx.textAlign = 'left';
     }
 
     introCtx.restore();
@@ -1205,6 +1354,7 @@ class Boss {
     
     update() {
         if (!this.alive) return;
+        if (gamePaused) return;
 
         this.buffNearbyWolves();
 
@@ -1661,6 +1811,7 @@ class Wolf {
     
     update() {
         if (!this.alive) return;
+        if (gamePaused) return;
         
         // Move towards player with spreading behavior
         const dx = player.x - this.x;
@@ -1755,7 +1906,8 @@ class Cave {
         this.width = 50;
         this.height = 40;
         this.spawnTimer = 0;
-        this.wolvesSpawnedThisNight = 0; // Track wolves spawned per night
+        this.spawnAccumulator = 0; // Accumulator for fractional spawns
+        this.wolvesSpawnedThisNight = 0;
     }
     
     draw() {
@@ -1768,26 +1920,59 @@ class Cave {
         ctx.fillRect(this.x - this.width/2 + 10, this.y - this.height/2 + 10, this.width - 20, this.height - 20);
     }
     
+    // Calculate wolves per second based on map, round, and boss state
+    getWolvesPerSecond() {
+        // Map offsets: forest=0, mountains=0.25, winter=0.5
+        let mapOffset = 0;
+        if (currentMap === 'mountains') mapOffset = 0.25;
+        else if (currentMap === 'winter') mapOffset = 0.5;
+        
+        // During boss fight: reduced spawn rate
+        // Forest: 2 per 5 sec (0.4/sec), Mountains: 3 per 5 sec (0.6/sec), Winter: 4 per 5 sec (0.8/sec)
+        if (bossActive && boss && boss.alive) {
+            if (currentMap === 'forest') return 0.4;      // 2 per 5 seconds
+            if (currentMap === 'mountains') return 0.6;   // 3 per 5 seconds
+            if (currentMap === 'winter') return 0.8;      // 4 per 5 seconds
+            return 0.4;
+        }
+        
+        // Normal spawn rate calculation
+        // Round 1 (nightsSurvived=0): base rate + mapOffset
+        // Scales up to 7 + mapOffset by round 10
+        // Base: 0.25 at round 1, 7.0 at round 10 (for forest)
+        const baseStartRate = 0.25 + mapOffset;
+        const baseEndRate = 7.0 + mapOffset;
+        
+        // Linear interpolation over 10 rounds (nightsSurvived 0-9)
+        const progress = Math.min(nightsSurvived / 9, 1); // 0 to 1 over rounds 1-10
+        const wolvesPerSecond = baseStartRate + (baseEndRate - baseStartRate) * progress;
+        
+        return wolvesPerSecond;
+    }
+    
     update() {
         if (isNight) {
-            this.spawnTimer++;
+            const wolvesPerSecond = this.getWolvesPerSecond();
+            const wolvesPerFrame = wolvesPerSecond / 60; // 60 FPS
             
-            // Progressive wolf limits - increases each night
-            const maxWolvesPerNight = Math.min(3 + Math.floor(nightsSurvived * 0.8), 12); // 3-12 wolves per night
-            const maxWolvesAtOnce = Math.min(2 + Math.floor(nightsSurvived * 0.3), 6); // 2-6 wolves at once
-            const spawnRate = Math.max(240 - (nightsSurvived * 15), 60); // Faster spawning at higher waves (4-1 minutes)
+            // Max wolves at once scales with difficulty
+            const maxWolvesAtOnce = Math.min(4 + Math.floor(nightsSurvived * 0.5), 15);
             
-            // Check if we can spawn more wolves
-            if (this.spawnTimer >= spawnRate && 
-                wolves.length < maxWolvesAtOnce && 
-                this.wolvesSpawnedThisNight < maxWolvesPerNight) {
+            // Accumulate spawn potential
+            this.spawnAccumulator += wolvesPerFrame;
+            
+            // Spawn wolves when accumulator >= 1
+            while (this.spawnAccumulator >= 1 && wolves.length < maxWolvesAtOnce) {
                 wolves.push(new Wolf(this.x, this.y));
-                this.spawnTimer = 0;
+                this.spawnAccumulator -= 1;
                 this.wolvesSpawnedThisNight++;
             }
+            
+            // Cap accumulator to prevent burst spawning after long periods
+            this.spawnAccumulator = Math.min(this.spawnAccumulator, 2);
         } else {
             this.spawnTimer = 0;
-            // Reset counter when day comes
+            this.spawnAccumulator = 0;
             this.wolvesSpawnedThisNight = 0;
         }
     }
@@ -3200,6 +3385,11 @@ function spawnBoss() {
 }
 
 function showRespawnButton() {
+    // Prevent stacking multiple respawn screens (can happen when multiple enemies hit in the same frame)
+    if (window.currentRespawnScreen) {
+        return;
+    }
+
     // Pause the game
     gamePaused = true;
     
