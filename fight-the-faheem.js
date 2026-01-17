@@ -1877,23 +1877,25 @@ window.addEventListener('load', function() {
     // bindHoldButton('mobileLeft', () => setMoveKey('a', true), () => setMoveKey('a', false));
     // bindHoldButton('mobileRight', () => setMoveKey('d', true), () => setMoveKey('d', false));
 
+     // Mobile bow shooting with 0.7s debounce
+     let mobileBowCooldown = 0;
+     const MOBILE_BOW_DEBOUNCE = 700; // 0.7 seconds in ms
+     
      bindHoldButton('mobileAttack', () => {
          const currentWeapon = weapons[currentAxeIndex];
          if (currentWeapon && currentWeapon.type === 'bow' && currentWeapon.owned && currentMap === 'mountains') {
-             player.bowCharging = true;
-             player.bowCharge = 0;
+             // Mobile bow: instant shoot at max velocity with debounce
+             const now = Date.now();
+             if (now - mobileBowCooldown >= MOBILE_BOW_DEBOUNCE) {
+                 mobileBowCooldown = now;
+                 shootArrow(); // Shoot immediately at max velocity
+             }
          } else {
              keys[' '] = true;
          }
      }, () => {
          keys[' '] = false;
-         if (player.bowCharging) {
-             player.bowCharging = false;
-             if (player.bowCharge >= player.maxBowCharge) {
-                 shootArrow();
-             }
-             player.bowCharge = 0;
-         }
+         // No bow charge logic needed for mobile - instant fire
      });
 
      const mobileEat = document.getElementById('mobileEat');
@@ -2106,30 +2108,68 @@ function showUnlockMessage(mapName) {
     populateShop(); // Refresh shop to show unlocked map
 }
 
-// Initialize joystick events
+// Initialize joystick events with multi-touch support
+let joystickTouchId = null; // Track specific touch for joystick
+
 window.addEventListener('load', function() {
     const joystickHandle = document.getElementById('joystickHandle');
     if (!joystickHandle) return;
     
     const handleStart = (e) => {
         e.preventDefault();
-        joystickActive = true;
-        const point = e.touches ? e.touches[0] : e;
-        updateJoystickPosition(joystickHandle, point.clientX, point.clientY);
+        e.stopPropagation();
+        if (e.touches) {
+            // For touch, track the specific touch ID
+            const touch = e.touches[0];
+            joystickTouchId = touch.identifier;
+            joystickActive = true;
+            updateJoystickPosition(joystickHandle, touch.clientX, touch.clientY);
+        } else {
+            // Mouse
+            joystickActive = true;
+            updateJoystickPosition(joystickHandle, e.clientX, e.clientY);
+        }
     };
     
     const handleMove = (e) => {
         if (!joystickActive) return;
-        e.preventDefault();
-        const point = e.touches ? e.touches[0] : e;
-        updateJoystickPosition(joystickHandle, point.clientX, point.clientY);
+        
+        if (e.touches) {
+            // Find the touch that started on joystick
+            let joystickTouch = null;
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === joystickTouchId) {
+                    joystickTouch = e.touches[i];
+                    break;
+                }
+            }
+            if (joystickTouch) {
+                e.preventDefault();
+                updateJoystickPosition(joystickHandle, joystickTouch.clientX, joystickTouch.clientY);
+            }
+        } else {
+            e.preventDefault();
+            updateJoystickPosition(joystickHandle, e.clientX, e.clientY);
+        }
     };
     
     const handleEnd = (e) => {
-        if (!joystickActive) return;
-        e.preventDefault();
-        joystickActive = false;
-        resetJoystick(joystickHandle);
+        if (e.changedTouches) {
+            // Only reset if the joystick touch ended
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    joystickActive = false;
+                    joystickTouchId = null;
+                    resetJoystick(joystickHandle);
+                    break;
+                }
+            }
+        } else {
+            // Mouse
+            if (!joystickActive) return;
+            joystickActive = false;
+            resetJoystick(joystickHandle);
+        }
     };
     
     // Mouse events
@@ -2137,10 +2177,12 @@ window.addEventListener('load', function() {
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleEnd);
     
-    // Touch events
-    joystickHandle.addEventListener('touchstart', handleStart, { passive: false });
+    // Touch events - use joystick base for better hit area
+    const joystickBase = joystickHandle.parentElement;
+    joystickBase.addEventListener('touchstart', handleStart, { passive: false });
     document.addEventListener('touchmove', handleMove, { passive: false });
     document.addEventListener('touchend', handleEnd, { passive: false });
+    document.addEventListener('touchcancel', handleEnd, { passive: false });
 });
 
 // Joystick functionality
