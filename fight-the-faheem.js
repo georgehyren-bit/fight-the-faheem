@@ -1368,30 +1368,30 @@ document.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
 });
 
-// Mouse tracking for bow aiming
-function updatePointerPosition(clientX, clientY) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    mouseX = (clientX - rect.left) * scaleX;
-    mouseY = (clientY - rect.top) * scaleY;
-}
-
-
-function shootArrow() {
-    const currentWeapon = weapons[currentAxeIndex];
-    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-    const speed = 10;
-    
-    player.arrows.push({
-        x: player.x,
-        y: player.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        damage: currentWeapon.damage,
-        life: 120 // 2 seconds at 60fps
-    });
-}
+ // Mouse tracking for bow aiming
+ function updatePointerPosition(clientX, clientY) {
+     const rect = canvas.getBoundingClientRect();
+     const scaleX = canvas.width / rect.width;
+     const scaleY = canvas.height / rect.height;
+     mouseX = (clientX - rect.left) * scaleX;
+     mouseY = (clientY - rect.top) * scaleY;
+ }
+ 
+ 
+ function shootArrow(angleOverride = null, speedOverride = null) {
+     const currentWeapon = weapons[currentAxeIndex];
+     const angle = (typeof angleOverride === 'number') ? angleOverride : Math.atan2(mouseY - player.y, mouseX - player.x);
+     const speed = (typeof speedOverride === 'number') ? speedOverride : 10;
+     
+     player.arrows.push({
+         x: player.x,
+         y: player.y,
+         vx: Math.cos(angle) * speed,
+         vy: Math.sin(angle) * speed,
+         damage: currentWeapon.damage,
+         life: 120 // 2 seconds at 60fps
+     });
+ }
 
 // UI functions
 function toggleInventory() {
@@ -1877,25 +1877,15 @@ window.addEventListener('load', function() {
     // bindHoldButton('mobileLeft', () => setMoveKey('a', true), () => setMoveKey('a', false));
     // bindHoldButton('mobileRight', () => setMoveKey('d', true), () => setMoveKey('d', false));
 
-     // Mobile bow shooting with 0.7s debounce
-     let mobileBowCooldown = 0;
-     const MOBILE_BOW_DEBOUNCE = 700; // 0.7 seconds in ms
-     
      bindHoldButton('mobileAttack', () => {
          const currentWeapon = weapons[currentAxeIndex];
          if (currentWeapon && currentWeapon.type === 'bow' && currentWeapon.owned && currentMap === 'mountains') {
-             // Mobile bow: instant shoot at max velocity with debounce
-             const now = Date.now();
-             if (now - mobileBowCooldown >= MOBILE_BOW_DEBOUNCE) {
-                 mobileBowCooldown = now;
-                 shootArrow(); // Shoot immediately at max velocity
-             }
+             return;
          } else {
              keys[' '] = true;
          }
      }, () => {
          keys[' '] = false;
-         // No bow charge logic needed for mobile - instant fire
      });
 
      const mobileEat = document.getElementById('mobileEat');
@@ -2183,6 +2173,152 @@ window.addEventListener('load', function() {
     document.addEventListener('touchmove', handleMove, { passive: false });
     document.addEventListener('touchend', handleEnd, { passive: false });
     document.addEventListener('touchcancel', handleEnd, { passive: false });
+});
+
+// Aim joystick state (right side)
+let aimJoystickTouchId = null;
+let aimJoystickActive = false;
+let aimJoystickVector = { x: 0, y: 0 };
+
+window.addEventListener('load', function() {
+    const aimHandle = document.getElementById('aimJoystickHandle');
+    if (!aimHandle) return;
+    const aimBase = aimHandle.parentElement;
+
+    const canUseBow = () => {
+        const currentWeapon = weapons[currentAxeIndex];
+        return currentWeapon && currentWeapon.type === 'bow' && currentWeapon.owned && currentMap === 'mountains';
+    };
+
+    const updateAimJoystick = (clientX, clientY) => {
+        const rect = aimBase.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        let deltaX = clientX - centerX;
+        let deltaY = clientY - centerY;
+
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) || 1;
+        const maxDistance = rect.width / 2 - 20;
+
+        if (distance > maxDistance) {
+            deltaX = (deltaX / distance) * maxDistance;
+            deltaY = (deltaY / distance) * maxDistance;
+        }
+
+        aimHandle.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+
+        const normalizedX = deltaX / maxDistance;
+        const normalizedY = deltaY / maxDistance;
+        aimJoystickVector = { x: normalizedX, y: normalizedY };
+
+        // Also update pointer aim fallback so any other code that uses mouseX/mouseY keeps working
+        if (Math.abs(normalizedX) > 0.02 || Math.abs(normalizedY) > 0.02) {
+            mouseX = player.x + normalizedX * 100;
+            mouseY = player.y + normalizedY * 100;
+        }
+    };
+
+    const resetAimJoystick = () => {
+        aimHandle.style.transform = 'translate(-50%, -50%)';
+        aimJoystickVector = { x: 0, y: 0 };
+    };
+
+    const startBowCharge = () => {
+        if (!player) return;
+        player.bowCharging = true;
+        // Keep existing bowCharge ramp behavior in updatePlayer
+    };
+
+    const releaseBowCharge = () => {
+        if (!player) return;
+
+        if (player.bowCharging) {
+            player.bowCharging = false;
+
+            const dx = aimJoystickVector.x;
+            const dy = aimJoystickVector.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const chargeRatio = player.maxBowCharge ? Math.min(1, (player.bowCharge || 0) / player.maxBowCharge) : 0;
+
+            // Require a minimum aim vector and charge so accidental taps don't fire
+            if (len > 0.15 && chargeRatio > 0.05) {
+                const angle = Math.atan2(dy, dx);
+                const speed = 10 + (10 * chargeRatio);
+                shootArrow(angle, speed);
+            }
+
+            player.bowCharge = 0;
+        }
+    };
+
+    const handleAimStart = (e) => {
+        if (!canUseBow()) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.touches) {
+            const touch = e.touches[0];
+            aimJoystickTouchId = touch.identifier;
+            aimJoystickActive = true;
+            updateAimJoystick(touch.clientX, touch.clientY);
+            startBowCharge();
+        } else {
+            aimJoystickActive = true;
+            updateAimJoystick(e.clientX, e.clientY);
+            startBowCharge();
+        }
+    };
+
+    const handleAimMove = (e) => {
+        if (!aimJoystickActive) return;
+
+        if (e.touches) {
+            let aimTouch = null;
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === aimJoystickTouchId) {
+                    aimTouch = e.touches[i];
+                    break;
+                }
+            }
+            if (!aimTouch) return;
+            e.preventDefault();
+            updateAimJoystick(aimTouch.clientX, aimTouch.clientY);
+        } else {
+            e.preventDefault();
+            updateAimJoystick(e.clientX, e.clientY);
+        }
+    };
+
+    const handleAimEnd = (e) => {
+        if (e.changedTouches) {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === aimJoystickTouchId) {
+                    aimJoystickActive = false;
+                    aimJoystickTouchId = null;
+                    resetAimJoystick();
+                    releaseBowCharge();
+                    break;
+                }
+            }
+        } else {
+            if (!aimJoystickActive) return;
+            aimJoystickActive = false;
+            resetAimJoystick();
+            releaseBowCharge();
+        }
+    };
+
+    // Mouse
+    aimBase.addEventListener('mousedown', handleAimStart);
+    document.addEventListener('mousemove', handleAimMove);
+    document.addEventListener('mouseup', handleAimEnd);
+
+    // Touch
+    aimBase.addEventListener('touchstart', handleAimStart, { passive: false });
+    document.addEventListener('touchmove', handleAimMove, { passive: false });
+    document.addEventListener('touchend', handleAimEnd, { passive: false });
+    document.addEventListener('touchcancel', handleAimEnd, { passive: false });
 });
 
 // Joystick functionality

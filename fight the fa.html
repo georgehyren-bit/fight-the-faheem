@@ -238,11 +238,16 @@
         .mobile-controls {
             display: none;
             width: var(--mobileSideWidth, 120px);
-            height: 600px;
+            height: min(600px, 100vh);
             flex-direction: column;
             justify-content: center;
             align-items: center;
             gap: 10px;
+        }
+
+        .mobile-controls.right {
+            justify-content: flex-end;
+            padding-bottom: 10px;
         }
 
         .mobile-btn {
@@ -296,6 +301,31 @@
             #gameContainer {
                 border: none;
             }
+
+            .ui-panel,
+            .qol-panel,
+            .testing-panel {
+                font-size: 11px;
+                padding: 8px;
+                border-radius: 6px;
+                max-width: calc(100vw - (2 * var(--mobileSideWidth) + 20px));
+            }
+
+            .ui-panel {
+                bottom: 6px;
+                left: 6px;
+            }
+
+            .qol-panel {
+                bottom: 6px;
+                left: 180px;
+                min-width: 0;
+                max-width: calc(100vw - (2 * var(--mobileSideWidth) + 20px) - 190px);
+            }
+
+            .testing-panel {
+                display: none;
+            }
         }
 
         .mobile-force .mobile-controls {
@@ -345,6 +375,13 @@
             transform: translate(-50%, -50%);
             cursor: pointer;
             transition: none;
+        }
+
+        .mobile-right-buttons {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
     </style>
 </head>
@@ -421,10 +458,17 @@
             </div>
         </div>
 
-        <div id="mobileRightControls" class="mobile-controls">
-            <button id="mobileAttack" class="mobile-btn" type="button">ATTACK</button>
-            <button id="mobileEat" class="mobile-btn" type="button">EAT</button>
-            <button id="mobileInventory" class="mobile-btn" type="button">INV</button>
+        <div id="mobileRightControls" class="mobile-controls right">
+            <div class="joystick-container" style="height: auto;">
+                <div class="joystick-base">
+                    <div class="joystick-handle" id="aimJoystickHandle"></div>
+                </div>
+            </div>
+            <div class="mobile-right-buttons">
+                <button id="mobileAttack" class="mobile-btn" type="button">ATTACK</button>
+                <button id="mobileEat" class="mobile-btn" type="button">EAT</button>
+                <button id="mobileInventory" class="mobile-btn" type="button">INV</button>
+            </div>
         </div>
     </div>
     
