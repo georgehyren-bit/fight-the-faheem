@@ -731,7 +731,7 @@ let weapons = [
     { name: 'Iron Axe', damage: 3, cost: 280, color: '#4169E1', owned: false },
     { name: 'Gold Axe', damage: 5, cost: 600, color: '#FFD700', owned: false },
     { name: 'Diamond Axe', damage: 8, cost: 1200, color: '#00CED1', owned: false },
-    { name: 'Bow', damage: 4, cost: 400, color: '#8B4513', owned: false, mapRestriction: 'mountains', type: 'bow' },
+    { name: 'Bow', damage: 12, cost: 2400, color: '#8B4513', owned: false, mapRestriction: 'mountains', type: 'bow' },
     { name: 'Battle Axe', damage: 25, cost: 800, color: '#696969', owned: false, mapRestriction: 'winter', attackCooldown: 80 }
 ];
 
